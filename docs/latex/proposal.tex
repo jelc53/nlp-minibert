@@ -13,31 +13,33 @@
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{lipsum}
+\usepackage{amsmath}
+%\usepackage[left=1.5cm, right=1.5cm]{geometry}
 
 \newcommand{\note}[1]{\textcolor{blue}{{#1}}}
 
 \title{
-  Title of your project \\
+  Project Proposal \\
   \vspace{1em}
-  \small{\normalfont Stanford CS224N \{Custom, Default\} Project}  % Select one and delete the other
+  % \small{\normalfont Stanford CS224N Default Project}  % Select one and delete the other
 }
 
 \author{
-  Name \\
-  Department of Computer Science \\
+  Quinn Hollister \\
+  % ICME \\
   Stanford University \\
-  \texttt{name@stanford.edu} \\
+  \texttt{bh9vw@stanford.edu} \\
   % Examples of more authors
-%   \And
-%   Name \\
-%   Department of Computer Science \\
-%   Stanford University \\
-%   \texttt{name@stanford.edu} \\
-%   \And
-%   Name \\
-%   Department of Computer Science \\
-%   Stanford University \\
-%   \texttt{name@stanford.edu}
+   \And
+    Julian Cooper \\
+  % ICME \\
+  Stanford University \\
+  \texttt{jelc@stanford.edu} \\
+   \And
+   Thomas Brink \\
+  % ICME \\
+  Stanford University \\
+  \texttt{tbrink@stanford.edu} \\
 }
 
 \begin{document}
@@ -48,97 +50,136 @@
 %   Required for final report
 % \end{abstract}
 
-
-\note{This template is built on NeurIPS 2019 template\footnote{\url{https://www.overleaf.com/latex/templates/neurips-2019/tprktwxmqmgk}} and provided for your convenience.}
-
-
-\section{Key Information to include}
-
-\begin{itemize}
-    \item External collaborators (if you have any):
-    \item Mentor (custom project only):
-    \item Sharing project:
-\end{itemize}
-
-
+% \note{This template is built on NeurIPS 2019 template\footnote{\url{https://www.overleaf.com/latex/templates/neurips-2019/tprktwxmqmgk}} and provided for your convenience.}
+\vspace{-0.7cm}
 \section{Research paper summary (max 2 pages)}
-
 \begin{table}[h]
+\footnotesize
     \centering
     \begin{tabular}{ll}
         \toprule
-        \textbf{Title} & Know What You Don't Know: Unanswerable Questions for SQuAD \\
+        \textbf{Title} & SMART: Robust and Efficient Fine-Tuning for Pre-trained
+Natural Language Models \\
+& through Principled Regularized
+Optimization\\
         \midrule
-        \textbf{Venue} & Association for Computational Linguistics (ACL) \\
-        \textbf{Year}  & 2018 \\
-        \textbf{URL}   & \url{https://www.aclweb.org/anthology/P18-2124/} \\
+        \textbf{Venue} & 	The 58th annual meeting of the Association for Computational Linguistics (ACL 2020) \\
+        \textbf{Year}  & 2023 (first submitted 2019) \\
         \bottomrule
     \end{tabular}
     \vspace{1em}
-    \caption{Sample table for bibliographical information~\cite{rajpurkar2018know}.}
-\end{table}
+    \caption{Bibliographical information for literature review~\cite{smart}.}
+\end{table} 
+\vspace{-0.35cm}
 
+% \newline
 \paragraph{Background.}
-Set the scene for the paper, looking to the introduction section, as well as the related work or background sections, if they exist.
-What motivations and problems do the authors cite when explaining why they think this work is important? 
-What problems are they attempting to solve, or what knowledge are they hoping to discover?
+Transfer learning has become an incredible tool for addressing various downstream NLP tasks like question answering and semantic similarity \cite{weiss2016survey}. Since most of the downstream tasks are more specialized, quality training data is a scarce resource, making training large models from scratch very difficult. Transfer learning allows us to first use a massive training data set of unlabeled data to generate weights of a complex model that can capture semantic and syntactic meaning of the language, which we can then “fine-tune” on the specific task we are trying to address by replacing the top layer of the language model by a domain-specific sub-network. This allows us to efficiently use scarce downstream data. Unfortunately, during fine-tuning, we are often too aggressive with the parameter updates and can lose the structure gained from pre-training. This produces overfitting and an inability of the model to generalize from the data. Jiang et al. \cite{smart} address a way to $(i)$ induce smoothness of the model prediction and $(ii)$ control the parameter updates by using a kind of trust-region regularization for each iterate to conserve the knowledge gained from pre-training.
 
+%Usually, transfer learning is split into two phases, pre-training and fine-tuning. First, a large language model is pre-trained on a large corpus of unlabeled text that can capture general semantic and syntactic information. Next, you switch to a fine-tuning stage where you replace the top layer of the language model by a task-/domain-specific sub-network, and continue to train with the far smaller set of relevant data. 
+  
 \paragraph{Summary of contributions.}
-Each paper is published because it adds something to the ongoing research conversation. It teaches us something we didn't know before, or provides us with a tool we didn't have, etc.
-Summarize what contributions this paper makes, whether they be in new algorithms, new experimental results and analysis, new meta-analysis of old papers, new datasets, or otherwise.
+%Each paper is published because it adds something to the ongoing research conversation. It teaches us something we didn't know before, or provides us with a tool we didn't have, etc.
+%Summarize what contributions this paper makes, whether they be in new algorithms, new experimental results and analysis, new meta-analysis of old papers, new datasets, or otherwise.
+To effectively control the \textbf{extremely high complexity} of the LLM, Jiang et al. \cite{smart} propose a smoothness-inducing adversarial regularization technique. Essentially, the desired property is that, when the input is perturbed by a small amount, the output should not change much. At the fine-tuning stage, they present a new loss function which includes a regularizer term, the computation of which requires a maximization problem that can be solved efficiently using projected gradient ascent. This regularizer term is essentially measuring the local Lipschitz continuity of under the symmetrized KL-divergence metric. So, the output of our model does not change much if we inject a small perturbation to the input, the magnitude of which is constrained to be $\epsilon$ small in the $p$-euclidean metric. Thus, we can encourage function $f$ to be smooth within the neighborhoods of our inputs. This is particularly helpful when working in a low-resource domain task. 
+
+\begin{align*}
+    min_{\theta} \mathcal{F}(\theta) & = \mathcal{L}(\theta) + \lambda_{s}\mathcal{R}_{s}(\theta) \\
+    \mathcal{L}(\theta) & = \frac{1}{n} \sum_{i=1}^{n} l(f(x_{i};\theta), y_{I}) \\
+    \mathcal{R}_{s}(\theta) & = \frac{1}{n} \sum_{i=1}^{n} \max_{\lVert \Tilde{x_{i}} - x_{i} \rVert_{p \leq \epsilon}} l_{s}\left(f(\Tilde{x_{i}}; \theta), f(x_{i}; \theta)\right) \\
+    l_{s}(P, Q) & = \mathcal{D}_{KL}(P \lVert Q) + \mathcal{D}_{KL}(Q \lVert P)
+\end{align*}
+
+
+    
+To prevent \textbf{aggressive updating} , the optimization routine is changed so that we introduce a trust-region-type regularization at each iteration, so we only update the model within a small neighborhood of the previous iterate. In order to solve the regularizer term, they develop a class of Bregman proximal point optimization methods. This strongly regularizes and prevents the parameter updates from deviating too much from their current state. Consequently, the model can retain the knowledge of the out-of-domain data in the pre-trained model. Each subproblem of this parameter update does not have a closed-form solution, so we need to solve it using SGD-type algorithms. 
+
+\begin{align*}
+    \theta_{t+1} & = argmin_{\theta} \mathcal{F}(\theta) + \mu \mathcal{D}_{Breg}(\theta, \Tilde{\theta_{t}}) \\
+    \mathcal{D}_{Breg}(\theta, \theta_{t}) & = \frac{1}{n} \sum_{i=1}^{n} l_{s} \left( f(x_{i}; \theta), f(x_{i}; \Tilde{\theta_{t}}) \right) \\
+    \Tilde{\theta}_{t} & = (1 - \beta)\theta_{t} + \beta \Tilde{\theta}_{t-1}
+\end{align*}
+
+They used BERT as a baseline model, and made changes to the loss function and optimization step as outlined in $(i)$ and $(ii)$. They then evaluated their SMART model on GLUE and compared to other state-of-the art models. Their model contained roughly 356 million parameters, whereas the state of the art model parameters were nearly two orders of magnitude higher. In their ablation study, they saw that each module (the regularizer and the update optimization algorithm) produced benefits upon the base model independently, i.e. these two components benefited each other. Also the improvement that SMART achieved over the BERT baseline was more pronounced in small datasets, illustrating how their changes were able to effectively decrease the amount of overfitting that manifested itself in the fine-tuning phase. Also somewhat surprisingly, the benefits from Multi-Task Learning can be combined with the changes from SMART to attain GLUE scores that improved on both separate models. Thus, they were able to show that SMART improves the generalization of Multi-task learning which itself is a kind of regularization adjustment to the baseline.  
+
 
 \paragraph{Limitations and discussion.}
-Every research paper has limitations and flaws.
-Using the discussion and conclusion sections if they exist, critically identify interesting experiments, methodology, or methods that might have made this paper stronger.
-For example, did the authors only evaluate on English, or only on Wikipedia text, and claim that their results generalize to all of language?
-Did the authors not characterize the errors their model makes compared to previous models?
-Discuss how these limitations contextualize the findings of the paper -- do you still find the paper convincing?
+While the methodology and the experiments section of this paper was encouraging and exciting, the lack of discussion on computational complexity and resources needed to implement these changes was concerning. SMART requires two additional optimizations that must occur at every step. This includes finding the maximal loss for an $\epsilon$-ball around the input, and finding the argument minimizer for the Bregman loss function. While the authors claim that both of these optimizations should be relatively quick, no figures or estimates were included on the additional runtime needed per step or per epoch. This discussion does not impact the results that their trained models achieved, but it would impact the feasibility of using their approach on larger models. 
 
 \paragraph{Why this paper?}
-There are infinite papers you could read, and you chose to read this one.
-Maybe it came up first on Google Scholar, or a TA suggested it\dots regardless, discuss your motivation for choosing this paper or the topic that the paper it addressed.
-What interested you about the topic?
-Having read it in depth, do you feel like you've gained from it what you were hoping? (``No'' is an okay answer here.)
+
+We choose this paper for two reasons: the emphasis on using advanced optimization techniques, and the principled nature of the approach to fixing over-fitting. All three of us have extensive computational math backgrounds, and the algorithms proposed in this paper connected with our research interests of optimization and algorithm design. Also, the fact that this approach can be applied without extensive hyper-parameter tuning surprised and excited us. After reading the paper, we felt like the approach described validated those beliefs (although the true test will be the performance gain we see in our experiments).
 
 \paragraph{Wider research context.}
-Each research paper is a focused contribution, targeting a very specific problem setting.
-However, each paper also fits into the broader story of NLP research -- designing systems that process human languages.
-In this course, we cover some fundamental concepts: how to represent language, what structure language has, why language is hard for computers to model, what problems tend to occur when applying deep learning methods to language.
-Connect the paper to these broad topics.
-Does the paper help us build better representations of language?
-If it helps us solve a particular task (like automatic translation or question answering,) do the methods have any promise for being more broadly applicable to other tasks (e.g., a new type of regularization in LSTMs applied in language modeling might be applicable to other NLP tasks!)
-It may be useful to do a cursory read of one or more of the papers cited in the paper you're reviewing, and cite them.
+Although transfer learning has proven to be a great tool to address various tasks in NLP, aggressive fine-tuning can hinder the performance on the directed downstream task. This paper aims to improve this correspondence between language model and learning, which can carry over to nearly every relevant task. Other approaches at solving this over-fitting problem include hyper-parameter tuning heuristics like gradually unfreezing layers, updating a certain fixed subset of layers, or using triangular learning rate schedules, but all of these require significant tuning efforts that lead to unprincipled solutions with little flexibility. 
+
+When focusing these large neural network models at language, we often want to utilize the structure of language learned from training on a large corpus to a certain group of tasks that might not be so similar. Moreover, an optimal language model should be flexible and capable of adapting its knowledge of the trained language to nearly any task. Unfortunately, the results of blind transfer learning are poor, which motivates changes in this secondary step to correct for over-fitting. This paper does so through changes made to the loss function and the optimizer steps, but another popular approach is Multi-task Learning (MTL) \cite{MTL}. MTL aims to reduce the amount of overfitting by training these disparate tasks jointly. This implicitly adds a regularizer term to the loss function. The actual process of finding a useful subset of tasks which will be useful is an active area of research. 
 
 
 \section{Project description (1-2 pages)}
 
 \paragraph{Goal.} 
-If possible, try to phrase this in terms of a scientific question you are trying to answer -- e.g., your goal may be to investigate whether a particular model or technique performs well at a certain task, or whether you can improve a particular model by adding some new variant, or (for theoretical/analytical projects), you might have some particular hypothesis that you seek to confirm or disprove.
-Otherwise, your goal may be simply to successfully implement a complex neural model, and show that it performs well on a given task.
-Briefly motivate why you chose this goal -- why do you think it is important, interesting, challenging and/or likely to succeed?
-If you have any secondary or stretch goals (i.e. things you will do if you have time), please also describe them.
-In this section, you should also make it clear how your project relates to your chosen paper.
+To investigate how the performance of our pre-trained BERT encoder model changes for three different downstream prediction tasks when we include (1) additional pre-training on target-domain data, and (2) regularization in our fine-tuning loss function as well as using trust-region regularization in the parameter update step.
+
+% If possible, try to phrase this in terms of a scientific question you are trying to answer -- e.g., your goal may be to investigate whether a particular model or technique performs well at a certain task, or whether you can improve a particular model by adding some new variant, or (for theoretical/analytical projects), you might have some particular hypothesis that you seek to confirm or disprove.
+% Otherwise, your goal may be simply to successfully implement a complex neural model, and show that it performs well on a given task.
+% Briefly motivate why you chose this goal -- why do you think it is important, interesting, challenging and/or likely to succeed?
+% If you have any secondary or stretch goals (i.e. things you will do if you have time), please also describe them.
+% In this section, you should also make it clear how your project relates to your chosen paper.
 
 \paragraph{Task.} 
-This could be the same task as addressed by your chosen paper, but it doesn't have to be. Describe the task clearly (i.e. give an example of an input and an output, if applicable) -- though if you already did this in the paper summary, there's no need to repeat. 
+Performance of our extensions to the default BERT pre-training and fine-tuning pipeline will be evaluated on three separate downstream prediction tasks: (a) sentiment analysis, (b) paraphrase detection, and (c) semantic textual similarity.
+
+\begin{itemize}
+    \item \textbf{Sentiment Analysis}: Want to predict sentiment of movie reviews from the Stanford Sentiment Treebank (SST). Our predictions will be categorical \{negative, somewhat negative, neutral, somewhat positive, positive\}.
+    
+    \item \textbf{Paraphrase Detection}: Want to predict whether a given question pair (A,B) is a "paraphrase pair" (i.e. one is a paraphrase of another) or not. Our predictions for this task are binary (true if paraphrase pair).
+    
+    \item \textbf{Semantic Textual Similarity}: Want to predict whether a sentence pair (A,B) is semantically similar. Our predictions will be real number similarity score values on a scale from 0 (unrelated) to 5 (equivalent meaning).
+\end{itemize}
+
+% This could be the same task as addressed by your chosen paper, but it doesn't have to be. Describe the task clearly (i.e. give an example of an input and an output, if applicable) -- though if you already did this in the paper summary, there's no need to repeat. 
 
 \paragraph{Data.}
-Specify the dataset(s) you will use (including its size), and describe any preprocessing you plan to do. If you plan to collect your own data, describe how you will do that and how long you expect it to take.
+Our minBERT model is pre-trained using two unsupervised tasks on Wikipedia articles: masked language modeling and next sentence prediction. We do not need to interact with the Wikipedia dataset directly because we are able to load pre-trained weights as our starting point.
+
+For fine-tuning and evaluating our model on downstream prediction tasks, we will use the Stanford Sentiment Treebank, Quora Dataset, and SemEval STS Benchmark Dataset. The \emph{Stanford Sentiment Treebank} (SST) dataset consists of 11,855 single sentence reviews, where a review is labelled categorically \{negative, somewhat negative, neutral, somewhat positive, positive\}. The \emph{Quora Dataset} (Quora) consists of 400,000 question pairs with binary labels (true if one question is paraphrasing the other). And finally, the \emph{SemEval STS Benchmark Dataset} (STS) consists of 8,628 different sentence pairs, with each given a score from 0 (unrelated) to 5 (equivalent meaning). Our datasets require some minimal pre-processing, including tokenizing sentence strings, lower-casing word tokens, standardizing punctuation tokens, and padding sentences to enable matrix multiplication.
+
+% Specify the dataset(s) you will use (including its size), and describe any preprocessing you plan to do. If you plan to collect your own data, describe how you will do that and how long you expect it to take.
 
 \paragraph{Methods.}
-Describe the models and/or techniques you plan to use.
-If it's already described in the paper summary, no need to repeat.
-If you plan to explore a variant to a published method, focus on describing how your method will be different.
-Make it clear which parts you plan to implement yourself, and which parts you will download from elsewhere. 
-If there is any part of your planned method that is original, make it clear.
+Idea: we plan to extend the default minBERT model in two ways:
+
+\begin{itemize}
+    \item \textbf{Additional pre-training for target domain} \cite{pretrain}: While we expect our pre-trained minBERT model weights to be effective for paraphrasing and semantic similarity analyses, we assume it will struggle to classify sentiment. This is become the Wikipedia corpus is largely filled with non-emotive, informational language. Because of this, we want to try adding an incremental pre-training layer that includes more emotive language (e.g. editorial corpus MULTIOpEd \cite{multioped}) trained on masked language modeling and next sentence prediction (original BERT objectives \cite{bert}). 
+    
+    \item \textbf{Regularization of fine-tuning loss and optimizer step} \cite{smart}: Many fine-tuning routines suffer from over-fitting, which lead to poor performance on test sets of downstream prediction tasks (see literature review). Having carefully included corpus text from relevant domains in our pre-training steps, we want to make sure our fine-tuning does not diverge too rapidly from the pre-trained weights. For this we introduce a regularization technique that adjusts both our loss and objective functions (see literature review section for detail).
+    
+    % \item \textbf{Multi-task "pre" fine-tuning} \cite{MTL}: Jiang et al. \cite{smart} noted in their paper that their SMART framework achieved further improved BLUE scores when combined with Multi-Task Learning.  
+
+    Note, if time permits, we want to try extending our model fine-tuning pipeline to include multi-task learning. In their development of the SMART framework, Jiang et al. found that combining SMART with multi-task learning achieved the best benchmark performance results \cite{smart}.
+    
+\end{itemize}
+
+% Describe the models and/or techniques you plan to use.
+% If it's already described in the paper summary, no need to repeat.
+% If you plan to explore a variant to a published method, focus on describing how your method will be different.
+% Make it clear which parts you plan to implement yourself, and which parts you will download from elsewhere. 
+% If there is any part of your planned method that is original, make it clear.
 
 \paragraph{Baselines.}
-Describe what methods you will use as baselines. Make it clear if these will be implemented by you, downloaded from elsewhere, or if you will just compare with previously published scores.
+For starters, we will be comparing our sentiment analysis accuracy with the baseline scores presented in the default project handout. These scores include baseline accuracies for both pre-trained and finetuned models on the SST and CFIMDB datasets. Mostly, we can view the respective baselines as `correctness' tests for our implementation. 
+
+Next, we will evaluate sentiment analysis accuracies for both of our extensions and compare these with the provided baseline scores. For all of our models, i.e., pretrained, fine-tuning, fine-tuning with extensions, we will also evaluate the performance when it comes to paraphrase detection and semantic textual similarity. The scores obtained from our pretrained and first fine-tuning models can then be considered somewhat as a baseline for our extensions. Since the idea behind the regularization used for our extensions is to prevent over-fitting during fine-tuning, we would hope our final model improves on our benchmarks.
 
 \paragraph{Evaluation.}
-Specify at least one well-defined, numerical, automatic evaluation metric you will use for quantitative evaluation. 
-What existing scores will you be comparing against for this metric? For example, if you're reimplementing or extending a method, state what score(s) the original method achieved; if you're applying an existing method to a new task, mention the state-of-the-art performance on the new task, and say something about how you expect your method to perform compared to other approaches.
-If you have any particular ideas about the qualitative evaluation you will do, you can describe that too.
+In terms of evaluation, we will be using accuracy for the sentiment analysis and paraphrase detection tasks, while we use Pearson correlation for semantic textual similarity. We note that the sentiment analysis accuracy is based on multi-class classification, while the paraphrase detection task is binary. The reference paper uses accuracy as their main metric as well, applying their model to a variety of tasks, such as those in the GLUE benchmark set \cite{wang2018glue}.
+
+We will be comparing our achieved scores for sentiment analysis with the baseline scores in the default project handout (for pre-trained and fine-tuned models), while, for the other two tasks, we will be comparing scores between our different implementations.
+
+% Specify at least one well-defined, numerical, automatic evaluation metric you will use for quantitative evaluation. 
+% What existing scores will you be comparing against for this metric? For example, if you're reimplementing or extending a method, state what score(s) the original method achieved; if you're applying an existing method to a new task, mention the state-of-the-art performance on the new task, and say something about how you expect your method to perform compared to other approaches.
+% If you have any particular ideas about the qualitative evaluation you will do, you can describe that too.
 
 \bibliographystyle{unsrt}
 \bibliography{references}
