@@ -35,6 +35,7 @@ class AdamW(Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue
+
                 grad = p.grad.data
                 if grad.is_sparse:
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
@@ -47,6 +48,7 @@ class AdamW(Optimizer):
 
                 # Complete the implementation of AdamW here, reading and saving
                 # your state in the `state` dictionary above.
+                #
                 # The hyperparameters can be read from the `group` dictionary
                 # (they are lr, betas, eps, weight_decay, as saved in the constructor).
                 #
@@ -58,8 +60,38 @@ class AdamW(Optimizer):
                 # 4- After that main gradient-based update, update again using weight decay
                 #    (incorporating the learning rate again).
 
-                ### TODO
-                raise NotImplementedError
+                # extract hyperparameters from group object
+                beta_1, beta_2 = group["betas"][0], group["betas"][1]
+                weight_decay = group["weight_decay"]
+                eps = group["eps"]
 
+                # initialize or access state variables
+                m = torch.zeros_like(p.data, memory_format=torch.preserve_format) if 'm' not in state else state['m']
+                v = torch.zeros_like(p.data, memory_format=torch.preserve_format) if 'v' not in state else state['v']
+                t = 0 if 't' not in state else state['t']
+
+                # increment t
+                t += 1
+
+                # update first and second moments of gradient
+                m = beta_1 * m + (1-beta_1) * grad
+                v = beta_2 * v + (1-beta_2) * grad**2
+
+                # update parameters (p.data)
+                if group["correct_bias"]:   # apply bias correction and update
+                    alpha_t = alpha * math.sqrt(1 - beta_2**t) / (1 - beta_1**t)  # optimized version
+                    denominator = torch.sqrt(v).add(eps)
+                    p.data.addcdiv_(m, denominator, value=-alpha_t)
+
+                else:  # update without bias correction
+                    denominator = torch.sqrt(v).add(eps)
+                    p.data.addcdiv_(m, denominator, value=-alpha)
+
+                # apply weight decay to gradient
+                p.data -= weight_decay * alpha * p.data
+
+                # update state
+                state['t'], state['m'], state['v'] = t, m, v
+                p.grad = grad
 
         return loss
