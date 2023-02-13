@@ -13,8 +13,9 @@ from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
 
+TQDM_DISABLE = False
 
-TQDM_DISABLE=False
+
 # fix the random seed
 def seed_everything(seed=11711):
     random.seed(seed)
@@ -24,6 +25,7 @@ def seed_everything(seed=11711):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
+
 
 class BertSentimentClassifier(torch.nn.Module):
     '''
@@ -41,11 +43,15 @@ class BertSentimentClassifier(torch.nn.Module):
         for param in self.bert.parameters():
             if config.option == 'pretrain':
                 param.requires_grad = False
+
             elif config.option == 'finetune':
                 param.requires_grad = True
 
         ### TODO
-        raise NotImplementedError
+        self.classifier = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(config.hidden_size, config.num_labels)
+        )
 
 
     def forward(self, input_ids, attention_mask):
@@ -54,8 +60,10 @@ class BertSentimentClassifier(torch.nn.Module):
         # HINT: you should consider what is the appropriate output to return given that
         # the training loop currently uses F.cross_entropy as the loss function.
         ### TODO
-        raise NotImplementedError
+        _, pooled = self.bert.forward(input_ids, attention_mask)
+        out = self.classifier(pooled)
 
+        return out
 
 
 class SentimentDataset(Dataset):
@@ -71,7 +79,7 @@ class SentimentDataset(Dataset):
         return self.dataset[idx]
 
     def pad_data(self, data):
-        
+
         sents = [x[0] for x in data]
         labels = [x[1] for x in data]
         sent_ids = [x[2] for x in data]
@@ -95,6 +103,7 @@ class SentimentDataset(Dataset):
             }
 
         return batched_data
+
 
 class SentimentTestDataset(Dataset):
     def __init__(self, dataset, args):
@@ -131,6 +140,7 @@ class SentimentTestDataset(Dataset):
 
         return batched_data
 
+
 # Load the data: a list of (sentence, label)
 def load_data(filename, flag='train'):
     num_labels = {}
@@ -157,6 +167,7 @@ def load_data(filename, flag='train'):
     else:
         return data
 
+
 # Evaluate the model for accuracy.
 def model_eval(dataloader, model, device):
     model.eval() # switch to eval model, will turn off randomness like dropout
@@ -166,8 +177,7 @@ def model_eval(dataloader, model, device):
     sent_ids = []
     for step, batch in enumerate(tqdm(dataloader, desc=f'eval', disable=TQDM_DISABLE)):
         b_ids, b_mask, b_labels, b_sents, b_sent_ids = batch['token_ids'],batch['attention_mask'],  \
-                                                        batch['labels'], batch['sents'], batch['sent_ids']
-                                                      
+                                                        batch['labels'], batch['sents'], batch['sent_ids']                                           
 
         b_ids = b_ids.to(device)
         b_mask = b_mask.to(device)
@@ -195,8 +205,7 @@ def model_test_eval(dataloader, model, device):
     sent_ids = []
     for step, batch in enumerate(tqdm(dataloader, desc=f'eval', disable=TQDM_DISABLE)):
         b_ids, b_mask, b_sents, b_sent_ids = batch['token_ids'],batch['attention_mask'],  \
-                                                         batch['sents'], batch['sent_ids']
-                                                      
+                                                         batch['sents'], batch['sent_ids']                                             
 
         b_ids = b_ids.to(device)
         b_mask = b_mask.to(device)
@@ -302,7 +311,7 @@ def test(args):
         model.load_state_dict(saved['model'])
         model = model.to(device)
         print(f"load model from {args.filepath}")
-        
+
         dev_data = load_data(args.dev, 'valid')
         dev_dataset = SentimentDataset(dev_data, args)
         dev_dataloader = DataLoader(dev_dataset, shuffle=False, batch_size=args.batch_size, collate_fn=dev_dataset.collate_fn)
@@ -310,7 +319,7 @@ def test(args):
         test_data = load_data(args.test, 'test')
         test_dataset = SentimentTestDataset(test_data, args)
         test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=args.batch_size, collate_fn=test_dataset.collate_fn)
-        
+
         dev_acc, dev_f1, dev_pred, dev_true, dev_sents, dev_sent_ids = model_eval(dev_dataloader, model, device)
         print('DONE DEV')
         test_pred, test_sents, test_sent_ids = model_test_eval(test_dataloader, model, device)
@@ -325,6 +334,8 @@ def test(args):
             f.write(f"id \t Predicted_Sentiment \n")
             for p, s  in zip(test_sent_ids,test_pred ):
                 f.write(f"{p} , {s} \n")
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=11711)
@@ -335,7 +346,6 @@ def get_args():
     parser.add_argument("--use_gpu", action='store_true')
     parser.add_argument("--dev_out", type=str, default="cfimdb-dev-output.txt")
     parser.add_argument("--test_out", type=str, default="cfimdb-test-output.txt")
-                                    
 
     parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
@@ -344,6 +354,7 @@ def get_args():
 
     args = parser.parse_args()
     return args
+
 
 if __name__ == "__main__":
     args = get_args()
