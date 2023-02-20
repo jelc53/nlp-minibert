@@ -92,6 +92,5 @@ class AdamW(Optimizer):
 
                 # update state
                 state['t'], state['m'], state['v'] = t, m, v
-                p.grad = grad
 
         return loss
