@@ -9,11 +9,11 @@ from typing import Dict, List, Optional, Union, Tuple, Callable
 class proximateGD(object):
     def __init__(self,
             model: BertModel,
-            epsilon: float = 1e-5,
+            epsilon: float = 1e-6,
             alpha: float = 1e-1,
             eta: float = 1e-3,
             sigma: float = 1e-5,
-            K: int = 10
+            K: int = 2
     ):
         super(proximateGD, self).__init__()
         self.embed_backup = {}
