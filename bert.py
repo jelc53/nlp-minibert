@@ -58,7 +58,7 @@ class BertSelfAttention(nn.Module):
     return y
 
 
-  def forward(self, hidden_states, attention_mask):
+  def forward(self, hidden_states, attention_mask, output_embed=False):
     """
     hidden_states: [bs, seq_len, hidden_state]
     attention_mask: [bs, 1, 1, seq_len]
@@ -106,7 +106,7 @@ class BertLayer(nn.Module):
     return x
 
 
-  def forward(self, hidden_states, attention_mask):
+  def forward(self, hidden_states, attention_mask, output_embed=False):
     """
     hidden_states: either from the embedding layer (first bert layer) or from the previous bert layer
     as shown in the left of Figure 1 of https://arxiv.org/pdf/1706.03762.pdf 
@@ -200,13 +200,16 @@ class BertModel(BertPreTrainedModel):
 
     return hidden_states
 
-  def forward(self, input_ids, attention_mask):
+  def forward(self, input_ids, attention_mask, output_embed=False):
     """
     input_ids: [batch_size, seq_len], seq_len is the max length of the batch
     attention_mask: same size as input_ids, 1 represents non-padding tokens, 0 represents padding tokens
     """
     # get the embedding for each input token
     embedding_output = self.embed(input_ids=input_ids)
+
+    if output_embed:
+      return embedding_output
 
     # feed to a transformer (a stack of BertLayers)
     sequence_output = self.encode(embedding_output, attention_mask=attention_mask)

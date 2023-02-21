@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import classification_report, f1_score, recall_score, accuracy_score
+from mfd_smartloss import SMARTLoss
 
 # change it with respect to the original model
 from tokenizer import BertTokenizer
@@ -13,7 +14,8 @@ from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
 
-import proximateGD, bergmanDiv
+from mfd_smartloss import SMARTLoss
+from loss import kl_loss_sym
 
 TQDM_DISABLE = False
 
@@ -257,8 +259,7 @@ def train(args):
     config = SimpleNamespace(**config)
 
     model = BertSentimentClassifier(config)
-    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_alpha)
-    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
+    regularizer = SMARTLoss(eval_fn=model, loss_fn=kl_loss_sym)
     model = model.to(device)
 
     lr = args.lr
@@ -280,20 +281,18 @@ def train(args):
 
             optimizer.zero_grad()
             logits = model(b_ids, b_mask)
+            embeds = model(b_ids, b_mask, output_embed=True)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            loss.backward(retain_graph=True)  # added retain_graph=True
+            # loss.backward(retain_graph=True)  # added retain_graph=True
 
             # smart regularization
             if args.extension == 'smart':  # TODO: check backward logic!
-                loss += pgd.max_loss_reg(b_ids, b_mask, logits)
-                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
-                breg_div.backward()
-                optimizer.step()
-                mbpp.apply_momentum(model.named_parameters())
+                loss_adv = regularizer(embeds, logits)
+                loss = loss + loss_adv
 
-            else:
-                optimizer.step()
+            loss.backward()
+            optimizer.step()
 
             train_loss += loss.item()
             num_batches += 1

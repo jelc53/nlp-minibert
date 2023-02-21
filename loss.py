@@ -41,3 +41,16 @@ def kl_loss_sym(input, target, reduction='sum', alpha=1.0):
         reduction=reduction,
     )
     return loss * alpha
+
+# def js_loss(input, target, reduction='sum', alpha=1.0):
+#     """xx"""
+#     mean_proba = 0.5 * (F.softmax(input.detach(), dim=-1) + F.softmax(target.detach(), dim=-1))
+#     return alpha * (F.kl_div(
+#         F.log_softmax(input, dim=-1), 
+#         mean_proba, 
+#         reduction=reduction
+#     ) + F.kl_div(
+#         F.log_softmax(target, dim=-1), 
+#         mean_proba, 
+#         reduction=reduction
+#     ))
