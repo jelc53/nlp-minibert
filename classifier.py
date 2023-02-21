@@ -13,7 +13,7 @@ from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
 
-import regularizer, momentum
+import proximateGD, momentum
 
 TQDM_DISABLE = False
 
@@ -257,7 +257,7 @@ def train(args):
     config = SimpleNamespace(**config)
 
     model = BertSentimentClassifier(config)
-    pgd = regularizer.AdversarialReg(model, args.pgd_epsilon, args.pgd_alpha)
+    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_alpha)
     mbpp = momentum.MBPP(model, args.mbpp_beta, args.mbpp_mu)
     model = model.to(device)
 
@@ -286,27 +286,8 @@ def train(args):
 
             # smart regularization
             if args.extension == 'smart':
-                pgd.grad_backup()
-
-                for k in range(args.pgd_k):
-                    # ...
-                    pgd.attack(is_first_attack=(args.pgd_k==0))
-
-                    # zero gradient ...
-                    if args.pgd_k != args.pgd_k-1:
-                        model.zero_grad()
-
-                    else:
-                        pgd.restore_grad()
-
-                    # adjust loss for adversarial reg.
-                    logits_adv = model(b_ids, b_mask)
-                    loss_adv = F.cross_entropy(logits_adv, b_labels.view(-1), reduction='sum') / args.batch_size
-                    loss_adv.backward()
-
-                # restore ...
-                pgd.restore()
-
+                loss += pgd.max_loss_reg(b_ids, b_mask, logits)
+                
                 # momentum ...
                 breg_div = mbpp.mu * mbpp.bregman_divergence((b_ids, b_mask), logits)
                 breg_div.backward()
