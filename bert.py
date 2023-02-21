@@ -102,7 +102,7 @@ class BertLayer(nn.Module):
     """
     # Hint: Remember that BERT applies to the output of each sub-layer, before it is added to the sub-layer input and normalized 
     ### TODO
-    x = ln_layer(dropout(input + dense_layer(output)))
+    x = ln_layer(input + dense_layer(dropout(output)))
     return x
 
 
