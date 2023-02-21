@@ -80,9 +80,6 @@ class proximateGD(object):
         return loss*self.alpha
 
     def max_loss_reg(self, b_ids, b_mask, logits, emb_name = 'embeddings.'):
-        '''
-        Need the embedding values
-        '''
 
         #Save original gradients
         self.save_gradients()
