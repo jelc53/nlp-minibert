@@ -13,7 +13,7 @@ from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
 
-import proximateGD, momentum
+import proximateGD, bergmanDiv
 
 TQDM_DISABLE = False
 
@@ -258,7 +258,7 @@ def train(args):
 
     model = BertSentimentClassifier(config)
     pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_alpha)
-    mbpp = momentum.MBPP(model, args.mbpp_beta, args.mbpp_mu)
+    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
     model = model.to(device)
 
     lr = args.lr
@@ -285,14 +285,15 @@ def train(args):
             loss.backward(retain_graph=True)  # added retain_graph=True
 
             # smart regularization
-            if args.extension == 'smart':
+            if args.extension == 'smart':  # TODO: check backward logic!
                 loss += pgd.max_loss_reg(b_ids, b_mask, logits)
-                
-                # momentum ...
-                breg_div = mbpp.mu * mbpp.bregman_divergence((b_ids, b_mask), logits)
+                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
                 breg_div.backward()
+                optimizer.step()
+                mbpp.apply_momentum(model.named_parameters())
 
-            optimizer.step()
+            else:
+                optimizer.step()
 
             train_loss += loss.item()
             num_batches += 1

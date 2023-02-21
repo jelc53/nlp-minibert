@@ -2,17 +2,17 @@ import torch
 import torch.nn.functional as F
 
 from bert import BertModel
-from typing import Dict, List, Optional, Union, Tuple, Callable
 
 
 class AdversarialReg(object):
+    """Smoothness-inducing adversarial regularization"""
     def __init__(self,
-            model: BertModel,
-            epsilon: float = 1e-6,
-            alpha: float = 1e-1,
-            eta: float = 1e-3,
-            sigma: float = 1e-5,
-            K: int = 2
+                 model: BertModel,
+                 epsilon: float = 1e-6,
+                 alpha: float = 1e-1,
+                 eta: float = 1e-3,
+                 sigma: float = 1e-5,
+                 K: int = 2
     ):
         super(AdversarialReg, self).__init__()
         self.embed_backup = {}
@@ -29,12 +29,10 @@ class AdversarialReg(object):
             if param.requires_grad:
                 self.grad_backup[name] = param.grad.clone()
 
-
     def save_embeddings(self, emb_name = 'embeddings.'):
         for name, param in self.model.named_parameters():
             if param.requires_grad and emb_name in name:
                 self.embed_backup[name] = param.data.clone()
-
 
     def restore_gradients(self):
         for name, param in self.model.named_parameters():
@@ -94,7 +92,7 @@ class AdversarialReg(object):
             #calculate loss and new gradients (with respect to just the embeddings)
             #update the noise with gradient clipping
 
-        for k in range(self.K):
+        for _ in range(self.K):
             #Zero out gradients
             self.model.zero_grad()
 
@@ -111,7 +109,7 @@ class AdversarialReg(object):
         #Restore original gradients
         self.restore_gradients()
 
-        #Calculate the final loss as impolied by the adversarial regularizer.
+        #Calculate the final loss as implied by the adversarial regularizer.
         adv_logits = self.model(b_ids, b_mask)
         adv_loss = self.symmetric_kl(adv_logits, logits.detach())
 
@@ -119,4 +117,3 @@ class AdversarialReg(object):
         self.restore_embeddings(emb_name = emb_name)
 
         return adv_loss
-
