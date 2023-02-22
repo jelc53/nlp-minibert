@@ -52,7 +52,21 @@ class MultitaskBERT(nn.Module):
             elif config.option == 'finetune':
                 param.requires_grad = True
         ### TODO
-        raise NotImplementedError
+
+        self.sentiment_classifier = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
+        )
+
+        self.paraphrase_classifier = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
+        )
+
+        self.similarity_classifier = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
+        )
 
 
     def forward(self, input_ids, attention_mask):
@@ -62,7 +76,9 @@ class MultitaskBERT(nn.Module):
         # When thinking of improvements, you can later try modifying this
         # (e.g., by adding other layers).
         ### TODO
-        raise NotImplementedError
+        out_dict = self.bert(input_ids, attention_mask)
+
+        return out_dict['pooler_output']
 
 
     def predict_sentiment(self, input_ids, attention_mask):
@@ -72,7 +88,10 @@ class MultitaskBERT(nn.Module):
         Thus, your output should contain 5 logits for each sentence.
         '''
         ### TODO
-        raise NotImplementedError
+        hidden = self.forward(input_ids, attention_mask)
+        logits = self.sentiment_classifier(hidden)
+
+        return logits
 
 
     def predict_paraphrase(self,
@@ -83,7 +102,14 @@ class MultitaskBERT(nn.Module):
         during evaluation, and handled as a logit by the appropriate loss function.
         '''
         ### TODO
-        raise NotImplementedError
+        hidden_1 = self.forward(input_ids_1, attention_mask_1)
+        hidden_2 = self.forward(input_ids_2, attention_mask_2)
+
+        features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+
+        logit = self.paraphrase_classifier(features)
+        
+        return logit
 
 
     def predict_similarity(self,
@@ -94,8 +120,14 @@ class MultitaskBERT(nn.Module):
         during evaluation, and handled as a logit by the appropriate loss function.
         '''
         ### TODO
-        raise NotImplementedError
+        hidden_1 = self.forward(input_ids_1, attention_mask_1)
+        hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
+        features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+
+        logit = self.similarity_classifier(features)
+        
+        return logit
 
 
 
