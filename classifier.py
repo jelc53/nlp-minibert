@@ -286,18 +286,21 @@ def train(args):
 
             # smart regularization
             if args.extension == 'smart':
+
+                # adversarial loss
                 adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
                 adv_loss.backward()
 
-                # momentum ...
-                breg_div = mbpp.mu * mbpp.bregman_divergence((b_ids, b_mask), logits)
+                # bregman divergence
+                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
                 breg_div.backward()
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())
 
-            else:
+            else:  # default implementation
                 optimizer.step()
 
+            train_loss += loss.item()  # TODO: how is train loss updated?
             num_batches += 1
 
         train_loss = train_loss / (num_batches)
