@@ -300,7 +300,7 @@ def train(args):
             else:  # default implementation
                 optimizer.step()
 
-            # train_loss += loss.item()  # TODO: how is train loss updated?
+            train_loss += loss.item()  # TODO: how is train loss updated?
             num_batches += 1
 
         train_loss = train_loss / (num_batches)
