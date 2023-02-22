@@ -286,15 +286,15 @@ def train(args):
 
             # smart regularization
             if args.extension == 'smart':
-                loss += pgd.max_loss_reg(b_ids, b_mask, logits)
-                
+                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
+                adv_loss.backward()
+
                 # momentum ...
                 breg_div = mbpp.mu * mbpp.bregman_divergence((b_ids, b_mask), logits)
                 breg_div.backward()
 
             optimizer.step()
 
-            train_loss += loss.item()
             num_batches += 1
 
         train_loss = train_loss / (num_batches)
