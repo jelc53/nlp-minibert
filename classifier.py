@@ -285,18 +285,12 @@ def train(args):
             loss.backward(retain_graph=True)  # added retain_graph=True
 
             # smart regularization
-<<<<<<< HEAD
             if args.extension == 'smart':
                 adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
                 adv_loss.backward()
 
                 # momentum ...
                 breg_div = mbpp.mu * mbpp.bregman_divergence((b_ids, b_mask), logits)
-=======
-            if args.extension == 'smart':  # TODO: check backward logic!
-                loss += pgd.max_loss_reg(b_ids, b_mask, logits)
-                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
->>>>>>> abe14295384dfe2d87a0c5de06a822af78cf849a
                 breg_div.backward()
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())
