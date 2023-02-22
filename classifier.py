@@ -297,13 +297,13 @@ def train(args):
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())
 
-            else:
+            else:  # default implementation
                 optimizer.step()
 
             # train_loss += loss.item()  # TODO: how is train loss updated?
             num_batches += 1
 
-        train_loss = train_loss / (num_batches)  
+        train_loss = train_loss / (num_batches)
 
         train_acc, train_f1, *_  = model_eval(train_dataloader, model, device)
         dev_acc, dev_f1, *_ = model_eval(dev_dataloader, model, device)
