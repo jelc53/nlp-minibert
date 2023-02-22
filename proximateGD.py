@@ -29,7 +29,6 @@ class AdversarialReg(object):
             if param.requires_grad:
                 self.grad_backup[name] = param.grad.clone()
 
-
     def save_embeddings(self, emb_name):
         for name, param in self.model.named_parameters():
             if param.requires_grad and emb_name in name:
@@ -51,7 +50,7 @@ class AdversarialReg(object):
     def generate_noise(self, emb_name):
         for name, param in self.model.named_parameters():
             if param.requires_grad and emb_name in name:
-                print(name)
+                # print(name)
                 noise = param.data.new(param.size()).normal_(0,1) * self.sigma
                 param.data.add_(noise)
                 param.data = self.project(name, param.data)
