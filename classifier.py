@@ -424,7 +424,13 @@ if __name__ == "__main__":
         test='data/ids-cfimdb-test-student.csv',
         option=args.option,
         dev_out = 'ids-cfimdb-dev-out.csv',
-        test_out = 'ids-cfimdb-test-out.csv'
+        test_out = 'ids-cfimdb-test-out.csv',
+        extension=args.extension,
+        pgd_k=args.pgd_k,
+        pgd_epsilon=args.pgd_epsilon,
+        pgd_alpha=args.pgd_alpha,
+        mbpp_beta=args.mbpp_beta,
+        mbpp_mu=args.mbpp_mu
     )
 
     train(config)
