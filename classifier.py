@@ -257,9 +257,10 @@ def train(args):
     config = SimpleNamespace(**config)
 
     model = BertSentimentClassifier(config)
+    model = model.to(device)
     pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_alpha)
     mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
-    model = model.to(device)
+    
 
     lr = args.lr
     best_dev_acc = 0
