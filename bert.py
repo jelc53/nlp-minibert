@@ -49,8 +49,9 @@ class BertSelfAttention(nn.Module):
     d = dh*nh
 
     #Calculate un-normalized scores
-    S = (query @ key.transpose(2, 3)) / (math.sqrt(key.size(-1)))
+    S = (query @ key.transpose(2, 3)) 
     S = S.masked_fill( ~torch.isclose(attention_mask, torch.zeros_like(attention_mask)), -1e10)
+    S = S / (math.sqrt(key.size(-1)))
     att = F.softmax(S, dim = -1)
     y = att @ value
     y = y.transpose(1, 2).contiguous().view(bs, l, d)
