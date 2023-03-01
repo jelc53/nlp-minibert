@@ -165,13 +165,19 @@ def train_multitask(args):
                                     collate_fn=sst_dev_data.collate_fn)
 
     # Init model
-    config = {'hidden_dropout_prob': args.hidden_dropout_prob,
-              'num_labels': num_labels,
-              'hidden_size': 768,
-              'data_dir': '.',
-              'option': args.option}
-
-    config = SimpleNamespace(**config)
+    config = SimpleNamespace(
+        hidden_dropout_prob = args.hidden_dropout_prob,
+        num_labels = args.num_labels,
+        hidden_size = 768,
+        data_dir = '.',
+        option = args.option,
+        extension=args.extension,
+        pgd_k=args.pgd_k,
+        pgd_epsilon=args.pgd_epsilon,
+        pgd_lambda=args.pgd_lambda,
+        mbpp_beta=args.mbpp_beta,
+        mbpp_mu=args.mbpp_mu
+    )
 
     model = MultitaskBERT(config)
     model = model.to(device)
@@ -283,6 +289,16 @@ def get_args():
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
     parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5",
                         default=1e-5)
+    parser.add_argument("--extension", type=str, default="smart")
+
+    # adversarial regularization
+    parser.add_argument('--pgd_k', type=int, default=1)
+    parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
+    parser.add_argument('--pgd_lambda', type=float, default=0.3)
+
+    # bergman momentum
+    parser.add_argument('--mbpp_beta', type=float, default=0.99)
+    parser.add_argument('--mbpp_mu', type=float, default=1)
 
     args = parser.parse_args()
     return args
