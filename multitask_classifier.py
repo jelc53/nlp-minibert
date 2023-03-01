@@ -211,13 +211,13 @@ def train_multitask(args):
             if args.extension == 'smart':
 
                 # adversarial loss
-                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
+                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
                 adv_loss.backward(retain_graph=True)
 
                 # bregman divergence
-                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
+                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
                 breg_div.backward(retain_graph=True)
-                
+
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())
 

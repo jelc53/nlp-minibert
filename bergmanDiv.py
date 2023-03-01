@@ -4,6 +4,15 @@ import torch.nn.functional as F
 from bert import BertModel
 
 
+def model_prediction(model, b_ids, b_mask, task_name='default'):
+    return {
+        'default': lambda: model(b_ids, b_mask),
+        'sentiment': lambda: model.predict_sentiment(b_ids, b_mask),
+        # 'paraphrase': lambda: model.predict_paraphrase(b_ids, b_mask),  # **args
+        # 'similarity': lambda: model.predict_similarity(b_ids, b_mask),
+    }[task_name]()
+
+
 class MBPP(object):
     """Momentum Bregman Proximal Point Optimization (or 'Mean Teacher')
     Source: https://arxiv.org/pdf/1703.01780.pdf"""
@@ -24,7 +33,7 @@ class MBPP(object):
         for name, param in named_parameters:
             self.theta_state[name] = (1-self.beta) * param.data.clone() + self.beta * self.theta_state[name]
 
-    def bregman_divergence(self, batch, logits):
+    def bregman_divergence(self, batch, logits, task_name='default'):
         theta_prob = F.softmax(logits, dim=-1)
 
         param_bak = {}
@@ -33,7 +42,8 @@ class MBPP(object):
             param.data = self.theta_state[name]
 
         with torch.no_grad():
-            theta_til_prob = F.softmax(self.model.predict_sentiment(*batch), dim=-1)
+            logits = model_prediction(self.model, *batch, task_name)  # self.model.predict_sentiment(*batch)
+            theta_til_prob = F.softmax(logits, dim=-1)
 
         for name, param in self.model.named_parameters():
             param.data = param_bak[name]
