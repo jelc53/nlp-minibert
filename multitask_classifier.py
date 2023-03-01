@@ -15,6 +15,8 @@ from datasets import SentenceClassificationDataset, SentencePairDataset, \
 
 from evaluation import model_eval_sst, test_model_multitask
 
+import proximateGD, bergmanDiv
+
 
 TQDM_DISABLE=False
 
@@ -173,6 +175,8 @@ def train_multitask(args):
 
     model = MultitaskBERT(config)
     model = model.to(device)
+    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
+    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr)
@@ -195,8 +199,24 @@ def train_multitask(args):
             logits = model.predict_sentiment(b_ids, b_mask)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            loss.backward()
-            optimizer.step()
+            loss.backward(retain_graph=True)  # added retain_graph=True
+
+            # smart regularization
+            if args.extension == 'smart':
+
+                # adversarial loss
+                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
+                adv_loss.backward()
+
+                # bregman divergence
+                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
+                breg_div.backward()
+                
+                optimizer.step()
+                mbpp.apply_momentum(model.named_parameters())
+
+            else:  # default implementation
+                optimizer.step()
 
             train_loss += loss.item()
             num_batches += 1
