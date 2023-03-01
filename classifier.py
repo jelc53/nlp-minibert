@@ -13,6 +13,8 @@ from bert import BertModel
 from optimizer import AdamW
 from import tqdm
 
+import proximateGD, bergmanDiv
+
 TQDM_DISABLE = False
 
 
@@ -51,7 +53,6 @@ class BertSentimentClassifier(torch.nn.Module):
             torch.nn.Dropout(config.hidden_dropout_prob),
             torch.nn.Linear(config.hidden_size, config.num_labels)
         )
-
 
     def forward(self, input_ids, attention_mask):
         '''Takes a batch of sentences and returns logits for sentiment classes'''
@@ -116,7 +117,7 @@ class SentimentTestDataset(Dataset):
         return self.dataset[idx]
 
     def pad_data(self, data):
-        
+
         sents = [x[0] for x in data]
         sent_ids = [x[1] for x in data]
 
@@ -244,10 +245,8 @@ def train(args):
     train_dataset = SentimentDataset(train_data, args)
     dev_dataset = SentimentDataset(dev_data, args)
 
-    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
-                                  collate_fn=train_dataset.collate_fn)
-    dev_dataloader = DataLoader(dev_dataset, shuffle=False, batch_size=args.batch_size,
-                                collate_fn=dev_dataset.collate_fn)
+    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, collate_fn=train_dataset.collate_fn)
+    dev_dataloader = DataLoader(dev_dataset, shuffle=False, batch_size=args.batch_size, collate_fn=dev_dataset.collate_fn)
 
     # Init model
     config = {'hidden_dropout_prob': args.hidden_dropout_prob,
@@ -255,15 +254,17 @@ def train(args):
               'hidden_size': 768,
               'data_dir': '.',
               'option': args.option}
-
     config = SimpleNamespace(**config)
 
     model = BertSentimentClassifier(config)
     model = model.to(device)
+    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
+    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
+    
 
     lr = args.lr
-    optimizer = AdamW(model.parameters(), lr=lr)
     best_dev_acc = 0
+    optimizer = AdamW(model.parameters(), lr=lr)
 
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
@@ -282,10 +283,27 @@ def train(args):
             logits = model(b_ids, b_mask)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            loss.backward()
-            optimizer.step()
+            # loss.backward(retain_graph=True)  # added retain_graph=True
 
-            train_loss += loss.item()
+            # smart regularization
+            if args.extension == 'smart':
+
+                # adversarial loss
+                loss += pgd.max_loss_reg(b_ids, b_mask, logits) # adv_loss
+                #adv_loss.backward()
+
+                # bregman divergence
+                loss += mbpp.bregman_divergence((b_ids, b_mask), logits) # breg_div
+                #breg_div.backward()
+                loss.backward()
+                optimizer.step()
+                mbpp.apply_momentum(model.named_parameters())
+
+            else:  # default implementation
+                loss.backward()
+                optimizer.step()
+
+            train_loss += loss.item()  # TODO: how is train loss updated?
             num_batches += 1
 
         train_loss = train_loss / (num_batches)
@@ -347,8 +365,17 @@ def get_args():
 
     parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
-    parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5",
-                        default=1e-5)
+    parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5", default=1e-5)
+    parser.add_argument("--extension", type=str, default="smart")
+
+    # adversarial regularization
+    parser.add_argument('--pgd_k', type=int, default=1)
+    parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
+    parser.add_argument('--pgd_lambda', type=float, default=0.3)
+
+    # bergman momentum
+    parser.add_argument('--mbpp_beta', type=float, default=0.99)
+    parser.add_argument('--mbpp_mu', type=float, default=1)
 
     args = parser.parse_args()
     return args
@@ -371,8 +398,14 @@ if __name__ == "__main__":
         dev='data/ids-sst-dev.csv',
         test='data/ids-sst-test-student.csv',
         option=args.option,
-        dev_out = 'predictions/'+args.option+'-sst-dev-out.csv',
-        test_out = 'predictions/'+args.option+'-sst-test-out.csv'
+        dev_out='predictions/'+args.option+'-sst-dev-out.csv',
+        test_out='predictions/'+args.option+'-sst-test-out.csv',
+        extension=args.extension,
+        pgd_k=args.pgd_k,
+        pgd_epsilon=args.pgd_epsilon,
+        pgd_lambda=args.pgd_lambda,
+        mbpp_beta=args.mbpp_beta,
+        mbpp_mu=args.mbpp_mu
     )
 
     train(config)
@@ -392,8 +425,14 @@ if __name__ == "__main__":
         dev='data/ids-cfimdb-dev.csv',
         test='data/ids-cfimdb-test-student.csv',
         option=args.option,
-        dev_out = 'predictions/'+args.option+'-cfimdb-dev-out.csv',
-        test_out = 'predictions/'+args.option+'ids-cfimdb-test-out.csv'
+        dev_out ='predictions/'+args.option+'-cfimdb-dev-out.csv',
+        test_out = 'predictions/'+args.option+'-cfimdb-test-out.csv',
+        extension=args.extension,
+        pgd_k=args.pgd_k,
+        pgd_epsilon=args.pgd_epsilon,
+        pgd_lambda=args.pgd_lambda,
+        mbpp_beta=args.mbpp_beta,
+        mbpp_mu=args.mbpp_mu
     )
 
     train(config)
