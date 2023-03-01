@@ -16,7 +16,7 @@ from datasets import SentenceClassificationDataset, SentencePairDataset, \
 from evaluation import model_eval_sst, test_model_multitask
 
 
-TQDM_DISABLE=True
+TQDM_DISABLE=False
 
 # fix the random seed
 def seed_everything(seed=11711):

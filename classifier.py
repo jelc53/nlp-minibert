@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report, f1_score, recall_score, accur
 from tokenizer import BertTokenizer
 from bert import BertModel
 from optimizer import AdamW
-from tqdm import tqdm
+from import tqdm
 
 TQDM_DISABLE = False
 
