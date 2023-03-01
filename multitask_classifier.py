@@ -167,7 +167,7 @@ def train_multitask(args):
     # Init model
     config = SimpleNamespace(
         hidden_dropout_prob = args.hidden_dropout_prob,
-        num_labels = args.num_labels,
+        num_labels = num_labels,
         hidden_size = 768,
         data_dir = '.',
         option = args.option,
