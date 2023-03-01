@@ -10,7 +10,7 @@ class MBPP(object):
 
     def __init__(self,
                  model: BertModel,
-                 beta: float = 0.8,
+                 beta: float = 0.99,
                  mu: float = 1
     ):
         self.model = model

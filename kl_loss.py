@@ -31,7 +31,7 @@ def kl_loss_sym(input, target, reduction='sum', alpha=1.0):
     """Symmetric Kullback-Leibler divergence using pytorch in-builts
     Source: https://arxiv.org/pdf/1911.03437.pdf
     """
-    loss = alpha * F.kl_div(
+    loss = F.kl_div(
         F.log_softmax(input, dim=-1),
         F.softmax(target.detach(), dim=-1),
         reduction=reduction,

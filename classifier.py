@@ -258,7 +258,7 @@ def train(args):
 
     model = BertSentimentClassifier(config)
     model = model.to(device)
-    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_alpha)
+    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
     mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
     
 
@@ -283,22 +283,24 @@ def train(args):
             logits = model(b_ids, b_mask)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            loss.backward(retain_graph=True)  # added retain_graph=True
+            # loss.backward(retain_graph=True)  # added retain_graph=True
 
             # smart regularization
             if args.extension == 'smart':
 
                 # adversarial loss
-                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
-                adv_loss.backward()
+                loss += pgd.max_loss_reg(b_ids, b_mask, logits) # adv_loss
+                #adv_loss.backward()
 
                 # bregman divergence
-                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
-                breg_div.backward()
+                loss += mbpp.bregman_divergence((b_ids, b_mask), logits) # breg_div
+                #breg_div.backward()
+                loss.backward()
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())
 
             else:  # default implementation
+                loss.backward()
                 optimizer.step()
 
             train_loss += loss.item()  # TODO: how is train loss updated?
@@ -369,10 +371,10 @@ def get_args():
     # adversarial regularization
     parser.add_argument('--pgd_k', type=int, default=1)
     parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
-    parser.add_argument('--pgd_alpha', type=float, default=0.3)
+    parser.add_argument('--pgd_lambda', type=float, default=0.3)
 
     # bergman momentum
-    parser.add_argument('--mbpp_beta', type=float, default=0.8)
+    parser.add_argument('--mbpp_beta', type=float, default=0.99)
     parser.add_argument('--mbpp_mu', type=float, default=1)
 
     args = parser.parse_args()
@@ -401,7 +403,7 @@ if __name__ == "__main__":
         extension=args.extension,
         pgd_k=args.pgd_k,
         pgd_epsilon=args.pgd_epsilon,
-        pgd_alpha=args.pgd_alpha,
+        pgd_lambda=args.pgd_lambda,
         mbpp_beta=args.mbpp_beta,
         mbpp_mu=args.mbpp_mu
     )
@@ -428,7 +430,7 @@ if __name__ == "__main__":
         extension=args.extension,
         pgd_k=args.pgd_k,
         pgd_epsilon=args.pgd_epsilon,
-        pgd_alpha=args.pgd_alpha,
+        pgd_lambda=args.pgd_lambda,
         mbpp_beta=args.mbpp_beta,
         mbpp_mu=args.mbpp_mu
     )

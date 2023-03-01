@@ -26,7 +26,7 @@ from datasets import load_multitask_data, load_multitask_test_data, \
     SentencePairDataset, SentencePairTestDataset
 
 
-TQDM_DISABLE = True
+TQDM_DISABLE = False
 
 # Evaluate a multitask model for accuracy.on SST only.
 def model_eval_sst(dataloader, model, device):
@@ -250,7 +250,7 @@ def test_model_multitask(args, model, device):
                                          collate_fn=para_dev_data.collate_fn)
 
         sts_test_data = SentencePairTestDataset(sts_test_data, args)
-        sts_dev_data = SentencePairDataset(sts_dev_data, args)
+        sts_dev_data = SentencePairDataset(sts_dev_data, args, isRegression=True)
 
         sts_test_dataloader = DataLoader(sts_test_data, shuffle=True, batch_size=args.batch_size,
                                          collate_fn=sts_test_data.collate_fn)

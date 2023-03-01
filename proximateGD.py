@@ -8,8 +8,8 @@ class AdversarialReg(object):
     """Smoothness-inducing adversarial regularization"""
     def __init__(self,
                  model: BertModel,
-                 epsilon: float = 1e-6,
-                 alpha: float = 1e-1,
+                 epsilon: float = 1e-5,
+                 lambda_: float = 1,#1e-1,
                  eta: float = 1e-3,
                  sigma: float = 1e-5,
                  K: int = 1
@@ -19,7 +19,7 @@ class AdversarialReg(object):
         self.grad_backup = {}
         self.model = model
         self.epsilon = epsilon
-        self.alpha = alpha
+        self.lambda_ = lambda_
         self.eta = eta
         self.sigma = sigma
         self.K = K
@@ -78,7 +78,7 @@ class AdversarialReg(object):
                          F.log_softmax(inputs, dim = -1),
                          reduction = 'batchmean', 
                          log_target = True)
-        return loss*self.alpha
+        return loss*self.lambda_
 
     def max_loss_reg(self, b_ids, b_mask, logits, emb_name = 'embedding.'):
 
