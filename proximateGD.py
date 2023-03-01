@@ -9,7 +9,7 @@ class AdversarialReg(object):
     def __init__(self,
                  model: BertModel,
                  epsilon: float = 1e-5,
-                 lambda_: float = 1,#1e-1,
+                 lambda_: float = 5,#1e-1,
                  eta: float = 1e-3,
                  sigma: float = 1e-5,
                  K: int = 1
@@ -50,10 +50,9 @@ class AdversarialReg(object):
     def generate_noise(self, emb_name):
         for name, param in self.model.named_parameters():
             if param.requires_grad and emb_name in name:
-                # print(name)
                 noise = param.data.new(param.size()).normal_(0,1) * self.sigma
                 param.data.add_(noise)
-                param.data = self.project(name, param.data)
+                #param.data = self.project(name, param.data)
 
     def project(self, param_name, param_data):
         change = param_data - self.embed_backup[param_name]
