@@ -283,24 +283,23 @@ def train(args):
             logits = model(b_ids, b_mask)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            # loss.backward(retain_graph=True)  # added retain_graph=True
+            loss.backward(retain_graph=True)  # added retain_graph=True
 
             # smart regularization
             if args.extension == 'smart':
 
                 # adversarial loss
-                loss += pgd.max_loss_reg(b_ids, b_mask, logits) # adv_loss
-                #adv_loss.backward()
+                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
+                adv_loss.backward()
 
                 # bregman divergence
-                loss += mbpp.bregman_divergence((b_ids, b_mask), logits) # breg_div
-                #breg_div.backward()
-                loss.backward()
+                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
+                breg_div.backward()
+                
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())
 
             else:  # default implementation
-                loss.backward()
                 optimizer.step()
 
             train_loss += loss.item()  # TODO: how is train loss updated?
