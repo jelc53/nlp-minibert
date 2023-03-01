@@ -31,7 +31,6 @@ def seed_everything(seed=11711):
 
 BERT_HIDDEN_SIZE = 768
 N_SENTIMENT_CLASSES = 5
-N_SIMILARITY_CLASSES = 6
 
 
 class MultitaskBERT(nn.Module):
@@ -66,7 +65,7 @@ class MultitaskBERT(nn.Module):
 
         self.similarity_classifier = torch.nn.Sequential(
             torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(BERT_HIDDEN_SIZE*3, N_SIMILARITY_CLASSES)
+            torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
 
 
