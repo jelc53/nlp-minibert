@@ -33,7 +33,7 @@ class MBPP(object):
             param.data = self.theta_state[name]
 
         with torch.no_grad():
-            theta_til_prob = F.softmax(self.model(*batch), dim=-1)
+            theta_til_prob = F.softmax(self.model.predict_sentiment(*batch), dim=-1)
 
         for name, param in self.model.named_parameters():
             param.data = param_bak[name]

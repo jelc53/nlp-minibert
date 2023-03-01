@@ -212,11 +212,11 @@ def train_multitask(args):
 
                 # adversarial loss
                 adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
-                adv_loss.backward()
+                adv_loss.backward(retain_graph=True)
 
                 # bregman divergence
                 breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
-                breg_div.backward()
+                breg_div.backward(retain_graph=True)
                 
                 optimizer.step()
                 mbpp.apply_momentum(model.named_parameters())

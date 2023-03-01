@@ -9,7 +9,7 @@ class AdversarialReg(object):
     def __init__(self,
                  model: BertModel,
                  epsilon: float = 1e-5,
-                 lambda_: float = 5,#1e-1,
+                 lambda_: float = 5,
                  eta: float = 1e-3,
                  sigma: float = 1e-5,
                  K: int = 1
@@ -27,7 +27,10 @@ class AdversarialReg(object):
     def save_gradients(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad:
-                self.grad_backup[name] = param.grad.clone()
+                if param.grad == None:
+                  self.grad_backup[name] = None
+                else:
+                  self.grad_backup[name] = param.grad.clone()
 
     def save_embeddings(self, emb_name):
         for name, param in self.model.named_parameters():
@@ -100,7 +103,7 @@ class AdversarialReg(object):
             self.model.zero_grad()
 
             #Calculate new logits with new embeddings (noise or ascent)
-            adv_logits = self.model(b_ids, b_mask)
+            adv_logits = self.model.predict_sentiment(b_ids, b_mask)
             adv_loss = self.symmetric_kl(adv_logits, logits.detach())
 
             #Calculate new gradients
@@ -113,7 +116,7 @@ class AdversarialReg(object):
         self.restore_gradients()
 
         #Calculate the final loss as implied by the adversarial regularizer.
-        adv_logits = self.model(b_ids, b_mask)
+        adv_logits = self.model.predict_sentiment(b_ids, b_mask)
         adv_loss = self.symmetric_kl(adv_logits, logits.detach())
 
         #Restore to the original embeddigns
