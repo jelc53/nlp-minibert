@@ -262,7 +262,7 @@ def train_multitask(args):
                 optimizer.zero_grad()
                 logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
                 loss = F.binary_cross_entropy(logits.squeeze().sigmoid(), b_labels.view(-1).type(torch.float32), reduction='sum') / args.batch_size
-        
+
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
                 if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
@@ -293,9 +293,9 @@ def train_multitask(args):
                 logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
                 # corr = np.corrcoef(logits.flatten().detach().numpy(),b_labels.detach().numpy())[1][0]
                 loss = F.cosine_similarity(logits.flatten(), b_labels.view(-1), dim=0)
-                
+
                 loss.backward(retain_graph=True)  # added retain_graph=True
-                
+
                 if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
 
                     # adversarial loss
@@ -321,23 +321,26 @@ def train_multitask(args):
             train_loss_para = train_loss_para / (num_batches)
             train_loss_sts = train_loss_sts / (num_batches)
 
-            (train_acc_para, _, _, 
-            train_acc_sst, _, _, 
+            (train_acc_para, _, _,
+            train_acc_sst, _, _,
             train_acc_sts, _, _) = model_eval_multitask(sst_train_dataloader, 
                                                         para_train_dataloader, 
                                                         sts_train_dataloader, 
                                                         model,
-                                                        device)
-            
-            (dev_acc_para, _, _, 
-            dev_acc_sst, _, _, 
+                                                        device,
+                                                        False)
+
+            (dev_acc_para, _, _,
+            dev_acc_sst, _, _,
             dev_acc_sts, _, _) = model_eval_multitask(sst_dev_dataloader, 
                                                     para_dev_dataloader, 
                                                     sts_dev_dataloader, 
                                                     model,
-                                                    device)
+                                                    device,
+                                                    False)
 
-            if np.mean([dev_acc_sst, dev_acc_para, dev_acc_sts]) > best_dev_acc:
+            dev_acc = np.mean([dev_acc_sst, dev_acc_para, dev_acc_sts])
+            if dev_acc > best_dev_acc:
                 best_dev_acc = dev_acc
                 save_model(model, optimizer, args, config, args.filepath)
 
