@@ -91,8 +91,19 @@ class AdversarialReg(object):
                          log_target = True)
         return loss*self.lambda_
 
-    def max_loss_reg(self, batch, logits, emb_name = 'embedding.', task_name='default'):
+    def symmetric_kl_check(self, inputs, target, reduce = True):
+        epsilon = 1e-6
+        bs = inputs.size(0)
+        p = F.log_softmax(inputs, 1).exp()
+        y = F.log_softmax(target, 1).exp()
+        rp = -(1.0 / (p + epsilon) - 1 + epsilon).detach().log()
+        ry = -(1.0 / (y + epsilon) - 1 + epsilon).detach().log()
+        if reduce:
+            return ((p * (rp - ry) * 2).sum() / bs)*self.lambda_
+        else:
+            return ((p * (rp - ry) * 2).sum())*self.lambda_
 
+    def max_loss_reg(self, batch, logits, emb_name = 'embedding.', task_name='default'):
         #Save original gradients
         self.save_gradients()
 
@@ -102,10 +113,6 @@ class AdversarialReg(object):
         #Update each embedding with a noise
         self.generate_noise(emb_name)
 
-        #For number of iterations
-            #calculate new logits with noise
-            #calculate loss and new gradients (with respect to just the embeddings)
-            #update the noise with gradient clipping
 
         for _ in range(self.K):
             #Zero out gradients
@@ -132,3 +139,4 @@ class AdversarialReg(object):
         self.restore_embeddings(emb_name)
 
         return adv_loss
+
