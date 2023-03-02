@@ -66,10 +66,7 @@ class MultitaskBERT(nn.Module):
             torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
 
-        self.similarity_classifier = torch.nn.Sequential(
-            torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
-        )
+        self.similarity_classifier = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
 
     def forward(self, input_ids, attention_mask):
         'Takes a batch of sentences and produces embeddings for them.'
@@ -105,7 +102,7 @@ class MultitaskBERT(nn.Module):
         hidden_1 = self.forward(input_ids_1, attention_mask_1)
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
-        features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+        features = torch.cat((hidden_1, hidden_2, torch.abs(torch.sub(hidden_1, hidden_2))), dim = 1)
         logit = self.paraphrase_classifier(features)
 
         return logit

@@ -103,7 +103,13 @@ class AdversarialReg(object):
         else:
             return ((p * (rp - ry) * 2).sum())*self.lambda_
 
+
     def max_loss_reg(self, batch, logits, emb_name = 'embedding.', task_name='default'):
+
+        #Overwrite current logits and do not do any dropout
+        self.model.eval()
+        logits = model_prediction(self.model, batch, task_name)
+      
         #Save original gradients
         self.save_gradients()
 
@@ -137,6 +143,9 @@ class AdversarialReg(object):
 
         #Restore to the original embeddigns
         self.restore_embeddings(emb_name)
+
+        #Allow dropout again
+        self.model.train()
 
         return adv_loss
 
