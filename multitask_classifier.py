@@ -90,7 +90,7 @@ class MultitaskBERT(nn.Module):
         '''
         ### TODO
         hidden = self.forward(input_ids, attention_mask)
-        logits = self.sentiment_classifier(hidden) 
+        logits = self.sentiment_classifier(hidden)
 
         return logits
 
@@ -107,7 +107,7 @@ class MultitaskBERT(nn.Module):
 
         features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
         logit = self.paraphrase_classifier(features)
-        
+
         return logit
 
     def predict_similarity(self,
@@ -121,8 +121,8 @@ class MultitaskBERT(nn.Module):
         hidden_1 = self.forward(input_ids_1, attention_mask_1)
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
-        #features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
-        #logit = self.similarity_classifier(features)
+        # features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+        # logit = self.similarity_classifier(features)
         logit = F.cosine_similarity(hidden_1, hidden_2)
         return logit
 
@@ -291,8 +291,9 @@ def train_multitask(args):
 
                 optimizer.zero_grad()
                 logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+                b_labels_scaled = b_labels / 5.0
                 # corr = np.corrcoef(logits.flatten().detach().numpy(),b_labels.detach().numpy())[1][0]
-                loss = F.cosine_similarity(logits.flatten(), b_labels.view(-1), dim=0)
+                loss = F.mse_loss(logits.flatten(), b_labels_scaled.view(-1))
 
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
