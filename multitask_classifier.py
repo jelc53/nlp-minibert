@@ -127,8 +127,8 @@ class MultitaskBERT(nn.Module):
 
         features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
 
-        logit = self.similarity_classifier(features)
-        
+        #logit = self.similarity_classifier(features)
+        logit = F.CosineSimilarity(hidden_1, hidden_2)
         return logit
 
 
