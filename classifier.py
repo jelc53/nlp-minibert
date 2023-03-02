@@ -258,8 +258,9 @@ def train(args):
 
     model = BertSentimentClassifier(config)
     model = model.to(device)
-    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
-    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
+    if args.extension == 'smart':
+        pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
+        mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
     
 
     lr = args.lr
@@ -371,10 +372,10 @@ def get_args():
     # adversarial regularization
     parser.add_argument('--pgd_k', type=int, default=1)
     parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
-    parser.add_argument('--pgd_lambda', type=float, default=5)
+    parser.add_argument('--pgd_lambda', type=float, default=10)
 
     # bergman momentum
-    parser.add_argument('--mbpp_beta', type=float, default=0.99)
+    parser.add_argument('--mbpp_beta', type=float, default=0.995)
     parser.add_argument('--mbpp_mu', type=float, default=1)
 
     args = parser.parse_args()
