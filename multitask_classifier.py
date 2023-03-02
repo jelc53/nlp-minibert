@@ -1,5 +1,6 @@
 import time, random, numpy as np, argparse, sys, re, os
 from types import SimpleNamespace
+import math, random
 
 import torch
 from torch import nn
@@ -156,13 +157,32 @@ def train_multitask(args):
     sst_train_data, num_labels,para_train_data, sts_train_data = load_multitask_data(args.sst_train,args.para_train,args.sts_train, split ='train')
     sst_dev_data, num_labels,para_dev_data, sts_dev_data = load_multitask_data(args.sst_dev,args.para_dev,args.sts_dev, split ='train')
 
-    sst_train_data = SentenceClassificationDataset(sst_train_data, args)
-    sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
+    # expand finetuning to include all multitask datasets
+    if args.extension in ['rrobin', 'rrobin-smart']:
+        num_batches = math.floor(len(sts_train_data) / args.batch_size)
+        num_iterations = num_batches * args.batch_size
 
-    sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size,
-                                      collate_fn=sst_train_data.collate_fn)
-    sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size,
-                                    collate_fn=sst_dev_data.collate_fn)
+        # sentiment dataset
+        sst_train_data = SentenceClassificationDataset(random.sample(sst_train_data, num_iterations), args)
+        sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
+
+        sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
+        sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sst_dev_data.collate_fn)
+
+        # paraphrase dataset
+        para_train_data = SentencePairDataset(random.sample(para_train_data, num_iterations), args)
+        para_train_dataloader = DataLoader(para_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=para_train_data.collate_fn)
+
+        # similarity dataset
+        sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_iterations), args, isRegression=True)
+        sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
+
+    else:  # default train only on sentiment dataset
+        sst_train_data = SentenceClassificationDataset(sst_train_data, args)
+        sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
+
+        sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
+        sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sst_dev_data.collate_fn)
 
     # Init model
     config = SimpleNamespace(
@@ -191,41 +211,141 @@ def train_multitask(args):
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
         model.train()
-        train_loss = 0
         num_batches = 0
-        for batch in tqdm(sst_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-            b_ids, b_mask, b_labels = (batch['token_ids'],
-                                       batch['attention_mask'], batch['labels'])
 
-            b_ids = b_ids.to(device)
-            b_mask = b_mask.to(device)
-            b_labels = b_labels.to(device)
+        # expand finetuning to include all multitask datasets
+        if args.extension in ['rrobin', 'rrobin-smart']:
+            train_loss, train_loss_para, train_loss_sts = 0, 0, 0  # TODO: train_loss_sst
+            
+            sst_iterator = iter(sst_train_dataloader)
+            para_iterator = iter(para_train_dataloader)
+            sts_iterator = iter(sts_train_dataloader)
 
-            optimizer.zero_grad()
-            logits = model.predict_sentiment(b_ids, b_mask)
-            loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
+            for _ in tqdm(range(num_iterations), desc=f'train-{epoch}', disable=TQDM_DISABLE):
+                # sentiment
+                batch = next(sst_iterator)
+                b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
+                b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
 
-            loss.backward(retain_graph=True)  # added retain_graph=True
+                optimizer.zero_grad()
+                logits = model.predict_sentiment(b_ids, b_mask)
+                loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            # smart regularization
-            if args.extension == 'smart':
+                loss.backward(retain_graph=True)  # added retain_graph=True
 
-                # adversarial loss
-                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
-                adv_loss.backward(retain_graph=True)
+                # smart regularization
+                if args.extension in ['rrobin-smart', 'smart']:
 
-                # bregman divergence
-                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
-                breg_div.backward(retain_graph=True)
+                    # adversarial loss
+                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    adv_loss.backward(retain_graph=True)
 
-                optimizer.step()
-                mbpp.apply_momentum(model.named_parameters())
+                    # bregman divergence
+                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div.backward(retain_graph=True)
 
-            else:  # default implementation
-                optimizer.step()
+                    optimizer.step()
+                    mbpp.apply_momentum(model.named_parameters())
 
-            train_loss += loss.item()
-            num_batches += 1
+                else:  # default implementation
+                    optimizer.step()
+
+                train_loss += loss.item()
+
+                # paraphrase
+                batch = next(para_iterator)
+                (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
+                b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+                loss = F.binary_cross_entropy(logits.squeeze().sigmoid(), b_labels.view(-1).type(torch.float32), reduction='sum') / args.batch_size
+        
+                loss.backward(retain_graph=True)  # added retain_graph=True
+
+                # TODO: smart regularization
+                if args.extension in ['rrobin-smart', 'smart']:
+
+                    # adversarial loss
+                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    adv_loss.backward(retain_graph=True)
+
+                    # bregman divergence
+                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div.backward(retain_graph=True)
+
+                    optimizer.step()
+                    mbpp.apply_momentum(model.named_parameters())
+
+                else:  # default implementation
+                    optimizer.step()
+
+                train_loss_para += loss.item()
+
+                # similarity
+                batch = next(sts_iterator)
+                (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
+                b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+                # corr = np.corrcoef(logits.flatten().detach().numpy(),b_labels.detach().numpy())[1][0]
+                loss = F.cosine_similarity(logits.flatten(), b_labels.view(-1), dim=0)
+                
+                loss.backward(retain_graph=True)  # added retain_graph=True
+
+                # TODO: smart regularization
+                if args.extension in ['rrobin-smart', 'smart']:
+
+                    # adversarial loss
+                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    adv_loss.backward(retain_graph=True)
+
+                    # bregman divergence
+                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div.backward(retain_graph=True)
+
+                    optimizer.step()
+                    mbpp.apply_momentum(model.named_parameters())
+
+                else:  # default implementation
+                    optimizer.step()
+
+                train_loss_sts += loss.item()
+
+                num_batches += 1
+
+        else:  # default train only on sentiment dataset
+            train_loss = 0
+            for batch in tqdm(sst_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+                b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
+                b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_sentiment(b_ids, b_mask)
+                loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
+
+                loss.backward(retain_graph=True)  # added retain_graph=True
+
+                # smart regularization
+                if args.extension in ['rrobin-smart', 'smart']:
+
+                    # adversarial loss
+                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    adv_loss.backward(retain_graph=True)
+
+                    # bregman divergence
+                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div.backward(retain_graph=True)
+
+                    optimizer.step()
+                    mbpp.apply_momentum(model.named_parameters())
+
+                else:  # default implementation
+                    optimizer.step()
+
+                train_loss += loss.item()
+                num_batches += 1
 
         train_loss = train_loss / (num_batches)
 
