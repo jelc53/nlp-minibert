@@ -159,22 +159,22 @@ def train_multitask(args):
 
     # expand finetuning to include all multitask datasets
     if args.extension in ['rrobin', 'rrobin-smart']:
-        num_batches = math.floor(len(sts_train_data) / args.batch_size)
-        num_iterations = num_batches * args.batch_size
+        num_iterations = math.floor(len(sts_train_data) / args.batch_size)
+        num_samples = num_iterations * args.batch_size
 
         # sentiment dataset
-        sst_train_data = SentenceClassificationDataset(random.sample(sst_train_data, num_iterations), args)
+        sst_train_data = SentenceClassificationDataset(random.sample(sst_train_data, num_samples), args)
         sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
 
         sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
         sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sst_dev_data.collate_fn)
 
         # paraphrase dataset
-        para_train_data = SentencePairDataset(random.sample(para_train_data, num_iterations), args)
+        para_train_data = SentencePairDataset(random.sample(para_train_data, num_samples), args)
         para_train_dataloader = DataLoader(para_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=para_train_data.collate_fn)
 
         # similarity dataset
-        sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_iterations), args, isRegression=True)
+        sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_samples), args, isRegression=True)
         sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
 
     else:  # default train only on sentiment dataset
@@ -216,13 +216,14 @@ def train_multitask(args):
         # expand finetuning to include all multitask datasets
         if args.extension in ['rrobin', 'rrobin-smart']:
             train_loss, train_loss_para, train_loss_sts = 0, 0, 0  # TODO: train_loss_sst
-            
+
             sst_iterator = iter(sst_train_dataloader)
             para_iterator = iter(para_train_dataloader)
             sts_iterator = iter(sts_train_dataloader)
 
             for _ in tqdm(range(num_iterations), desc=f'train-{epoch}', disable=TQDM_DISABLE):
-                # sentiment
+
+                # sentiment ----------------------------------------------
                 batch = next(sst_iterator)
                 b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
                 b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
@@ -252,7 +253,7 @@ def train_multitask(args):
 
                 train_loss += loss.item()
 
-                # paraphrase
+                # paraphrase ----------------------------------------------
                 batch = next(para_iterator)
                 (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
                 b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
@@ -282,7 +283,7 @@ def train_multitask(args):
 
                 train_loss_para += loss.item()
 
-                # similarity
+                # similarity ----------------------------------------------
                 batch = next(sts_iterator)
                 (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
                 b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
