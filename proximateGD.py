@@ -106,6 +106,10 @@ class AdversarialReg(object):
 
     def max_loss_reg(self, b_ids, b_mask, logits, emb_name = 'embedding.', task_name='default'):
 
+        #Overwrite current logits and do not do any dropout
+        self.model.eval()
+        logits = model_prediction(self.model, b_ids, b_mask, task_name)
+
         #Save original gradients
         self.save_gradients()
 
@@ -139,6 +143,9 @@ class AdversarialReg(object):
 
         #Restore to the original embeddigns
         self.restore_embeddings(emb_name)
+
+        #Allow dropout again
+        self.model.train()
 
         return adv_loss
 
