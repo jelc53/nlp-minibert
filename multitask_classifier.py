@@ -65,10 +65,7 @@ class MultitaskBERT(nn.Module):
             torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
 
-        self.similarity_classifier = torch.nn.Sequential(
-            torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
-        )
+        self.similarity_classifier = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
 
 
     def forward(self, input_ids, attention_mask):
@@ -107,7 +104,7 @@ class MultitaskBERT(nn.Module):
         hidden_1 = self.forward(input_ids_1, attention_mask_1)
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
-        features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+        features = torch.cat((hidden_1, hidden_2, torch.abs(torch.sub(hidden_1, hidden_2))), dim = 1)
         logit = self.paraphrase_classifier(features)
         
         return logit
@@ -123,10 +120,9 @@ class MultitaskBERT(nn.Module):
         ### TODO
         hidden_1 = self.forward(input_ids_1, attention_mask_1)
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
-
-        #features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
-        #logit = self.similarity_classifier(features)
-        logit = F.cosine_similarity(hidden_1, hidden_2)
+        
+        logit = self.similarity_classifier(hidden_1, hidden_2)
+        
         return logit
 
 
@@ -204,7 +200,7 @@ def train_multitask(args):
             logits = model.predict_sentiment(b_ids, b_mask)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-            loss.backward(retain_graph=True)  # added retain_graph=True
+            loss.backward(retain_graph=True) 
 
             # smart regularization
             if args.extension == 'smart':
