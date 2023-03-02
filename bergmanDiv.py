@@ -4,12 +4,12 @@ import torch.nn.functional as F
 from bert import BertModel
 
 
-def model_prediction(model, b_ids, b_mask, task_name='default'):
+def model_prediction(model, batch, task_name='default'):
     return {
-        'default': lambda: model(b_ids, b_mask),
-        'sentiment': lambda: model.predict_sentiment(b_ids, b_mask),
-        # 'paraphrase': lambda: model.predict_paraphrase(b_ids, b_mask),  # **args
-        # 'similarity': lambda: model.predict_similarity(b_ids, b_mask),
+        'default': lambda: model(*batch),
+        'sst': lambda: model.predict_sentiment(*batch),
+        'para': lambda: model.predict_paraphrase(*batch),
+        'sts': lambda: model.predict_similarity(*batch),
     }[task_name]()
 
 
@@ -42,7 +42,7 @@ class MBPP(object):
             param.data = self.theta_state[name]
 
         with torch.no_grad():
-            logits = model_prediction(self.model, *batch, task_name)  # self.model.predict_sentiment(*batch)
+            logits = model_prediction(self.model, batch, task_name)  # self.model.predict_sentiment(*batch)
             theta_til_prob = F.softmax(logits, dim=-1)
 
         for name, param in self.model.named_parameters():

@@ -14,7 +14,7 @@ from tqdm import tqdm
 from datasets import SentenceClassificationDataset, SentencePairDataset, \
     load_multitask_data, load_multitask_test_data
 
-from evaluation import model_eval_sst, test_model_multitask
+from evaluation import model_eval_sst, model_eval_multitask, test_model_multitask
 
 import proximateGD, bergmanDiv
 
@@ -173,9 +173,15 @@ def train_multitask(args):
         para_train_data = SentencePairDataset(random.sample(para_train_data, num_samples), args)
         para_train_dataloader = DataLoader(para_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=para_train_data.collate_fn)
 
+        para_dev_data = SentencePairDataset(para_dev_data, args)
+        para_dev_dataloader = DataLoader(para_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=para_dev_data.collate_fn)
+
         # similarity dataset
         sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_samples), args, isRegression=True)
         sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
+
+        sts_dev_data = SentencePairDataset(sts_dev_data, args)
+        sts_dev_dataloader = DataLoader(sts_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sts_dev_data.collate_fn)
 
     else:  # default train only on sentiment dataset
         sst_train_data = SentenceClassificationDataset(sst_train_data, args)
@@ -208,14 +214,15 @@ def train_multitask(args):
     optimizer = AdamW(model.parameters(), lr=lr)
     best_dev_acc = 0
 
-    # Run for the specified number of epochs
-    for epoch in range(args.epochs):
-        model.train()
-        num_batches = 0
+    # expand finetuning to include all multitask datasets
+    if args.extension in ['rrobin', 'rrobin-smart']:
 
-        # expand finetuning to include all multitask datasets
-        if args.extension in ['rrobin', 'rrobin-smart']:
-            train_loss, train_loss_para, train_loss_sts = 0, 0, 0  # TODO: train_loss_sst
+        # run for the specified number of epochs
+        for epoch in range(args.epochs):
+            model.train()
+            num_batches = 0
+
+            train_loss_sst, train_loss_para, train_loss_sts = 0, 0, 0
 
             sst_iterator = iter(sst_train_dataloader)
             para_iterator = iter(para_train_dataloader)
@@ -223,7 +230,7 @@ def train_multitask(args):
 
             for _ in tqdm(range(num_iterations), desc=f'train-{epoch}', disable=TQDM_DISABLE):
 
-                # sentiment ----------------------------------------------
+                ### sentiment ----------------------------------------------
                 batch = next(sst_iterator)
                 b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
                 b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
@@ -234,15 +241,15 @@ def train_multitask(args):
 
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
-                # smart regularization
-                if args.extension in ['rrobin-smart', 'smart']:
+                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
 
                     # adversarial loss
-                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    batch_inputs = (b_ids, b_mask)
+                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sst')
                     adv_loss.backward(retain_graph=True)
 
                     # bregman divergence
-                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sst')
                     breg_div.backward(retain_graph=True)
 
                     optimizer.step()
@@ -251,9 +258,9 @@ def train_multitask(args):
                 else:  # default implementation
                     optimizer.step()
 
-                train_loss += loss.item()
+                train_loss_sst += loss.item()
 
-                # paraphrase ----------------------------------------------
+                ### paraphrase ----------------------------------------------
                 batch = next(para_iterator)
                 (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
                 b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
@@ -264,15 +271,15 @@ def train_multitask(args):
         
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
-                # TODO: smart regularization
-                if args.extension in ['rrobin-smart', 'smart']:
+                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
 
                     # adversarial loss
-                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
+                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='para')
                     adv_loss.backward(retain_graph=True)
 
                     # bregman divergence
-                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='para')
                     breg_div.backward(retain_graph=True)
 
                     optimizer.step()
@@ -283,7 +290,7 @@ def train_multitask(args):
 
                 train_loss_para += loss.item()
 
-                # similarity ----------------------------------------------
+                ### similarity ----------------------------------------------
                 batch = next(sts_iterator)
                 (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
                 b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
@@ -294,16 +301,16 @@ def train_multitask(args):
                 loss = F.cosine_similarity(logits.flatten(), b_labels.view(-1), dim=0)
                 
                 loss.backward(retain_graph=True)  # added retain_graph=True
-
-                # TODO: smart regularization
-                if args.extension in ['rrobin-smart', 'smart']:
+                
+                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
 
                     # adversarial loss
-                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
+                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sts')
                     adv_loss.backward(retain_graph=True)
 
                     # bregman divergence
-                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sts')
                     breg_div.backward(retain_graph=True)
 
                     optimizer.step()
@@ -316,8 +323,43 @@ def train_multitask(args):
 
                 num_batches += 1
 
-        else:  # default train only on sentiment dataset
+        train_loss_sst = train_loss_sst / (num_batches)
+        train_loss_para = train_loss_para / (num_batches)
+        train_loss_sts = train_loss_sts / (num_batches)
+
+        (train_acc_para, _, _, 
+         train_acc_sst, _, _, 
+         train_acc_sts, _, _) = model_eval_multitask(sst_train_dataloader, 
+                                                     para_train_dataloader, 
+                                                     sts_train_dataloader, 
+                                                     model,
+                                                     device)
+         
+        (dev_acc_para, _, _, 
+         dev_acc_sst, _, _, 
+         dev_acc_sts, _, _) = model_eval_multitask(sst_dev_dataloader, 
+                                                   para_dev_dataloader, 
+                                                   sts_dev_dataloader, 
+                                                   model,
+                                                   device)
+
+        if np.mean([dev_acc_sst, dev_acc_para, dev_acc_sts]) > best_dev_acc:
+            best_dev_acc = dev_acc
+            save_model(model, optimizer, args, config, args.filepath)
+
+        print(f"Epoch {epoch}: sentiment -->> train loss :: {train_loss_sst :.3f}, train acc :: {train_acc_sst :.3f}, dev acc :: {dev_acc_sst :.3f}") 
+        print(f"Epoch {epoch}: paraphrase -->> train loss :: {train_loss_para :.3f}, train acc :: {train_acc_para :.3f}, dev acc :: {dev_acc_para :.3f}") 
+        print(f"Epoch {epoch}: similarity -->> train loss :: {train_loss_sts :.3f}, train acc :: {train_acc_sts :.3f}, dev acc :: {dev_acc_sts :.3f}") 
+
+
+    else:  # default train only on sentiment dataset
+
+        # run for the specified number of epochs
+        for epoch in range(args.epochs):
+            model.train()
+            num_batches = 0
             train_loss = 0
+
             for batch in tqdm(sst_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
                 b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
                 b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
@@ -349,16 +391,15 @@ def train_multitask(args):
                 num_batches += 1
 
         train_loss = train_loss / (num_batches)
-
+            
         train_acc, train_f1, *_ = model_eval_sst(sst_train_dataloader, model, device)
         dev_acc, dev_f1, *_ = model_eval_sst(sst_dev_dataloader, model, device)
 
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
-
-        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
-
+        
+        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}") 
 
 
 def test_model(args):

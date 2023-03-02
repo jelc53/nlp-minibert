@@ -4,12 +4,12 @@ import torch.nn.functional as F
 from bert import BertModel
 
 
-def model_prediction(model, b_ids, b_mask, task_name='default'):
+def model_prediction(model, batch, task_name='default'):
     return {
-        'default': lambda: model(b_ids, b_mask),
-        'sentiment': lambda: model.predict_sentiment(b_ids, b_mask),
-        # 'paraphrase': lambda: model.predict_paraphrase(b_ids, b_mask),  # **args
-        # 'similarity': lambda: model.predict_similarity(b_ids, b_mask),
+        'default': lambda: model(*batch),
+        'sst': lambda: model.predict_sentiment(*batch),
+        'para': lambda: model.predict_paraphrase(*batch),
+        'sts': lambda: model.predict_similarity(*batch),
     }[task_name]()
 
 
@@ -91,7 +91,7 @@ class AdversarialReg(object):
                          log_target = True)
         return loss*self.lambda_
 
-    def max_loss_reg(self, b_ids, b_mask, logits, emb_name = 'embedding.', task_name='default'):
+    def max_loss_reg(self, batch, logits, emb_name = 'embedding.', task_name='default'):
 
         #Save original gradients
         self.save_gradients()
@@ -112,7 +112,7 @@ class AdversarialReg(object):
             self.model.zero_grad()
 
             #Calculate new logits with new embeddings (noise or ascent)
-            adv_logits = model_prediction(self.model, b_ids, b_mask, task_name)
+            adv_logits = model_prediction(self.model, batch, task_name)
             adv_loss = self.symmetric_kl(adv_logits, logits.detach())
 
             #Calculate new gradients
@@ -125,7 +125,7 @@ class AdversarialReg(object):
         self.restore_gradients()
 
         #Calculate the final loss as implied by the adversarial regularizer.
-        adv_logits = model_prediction(self.model, b_ids, b_mask, task_name)  # self.model.predict_sentiment(b_ids, b_mask)
+        adv_logits = model_prediction(self.model, batch, task_name)  # self.model.predict_sentiment(b_ids, b_mask)
         adv_loss = self.symmetric_kl(adv_logits, logits.detach())
 
         #Restore to the original embeddigns
