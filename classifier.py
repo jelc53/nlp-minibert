@@ -373,7 +373,7 @@ def get_args():
     # adversarial regularization
     parser.add_argument('--pgd_k', type=int, default=1)
     parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
-    parser.add_argument('--pgd_lambda', type=float, default=10)
+    parser.add_argument('--pgd_lambda', type=float, default=1)
 
     # bergman momentum
     parser.add_argument('--mbpp_beta', type=float, default=0.995)
