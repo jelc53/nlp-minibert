@@ -348,7 +348,7 @@ def train_multitask(args):
             print(f"Epoch {epoch}: paraphrase -->> train loss :: {train_loss_para :.3f}, train acc :: {train_acc_para :.3f}, dev acc :: {dev_acc_para :.3f}") 
             print(f"Epoch {epoch}: similarity -->> train loss :: {train_loss_sts :.3f}, train acc :: {train_acc_sts :.3f}, dev acc :: {dev_acc_sts :.3f}") 
 
-            del loss; del adv_loss; del breg_div; del logits
+            # del loss; del adv_loss; del breg_div; del logits
 
     else:  # default train only on sentiment dataset
 
@@ -372,11 +372,12 @@ def train_multitask(args):
                 if args.extension in ['rrobin-smart', 'smart']:
 
                     # adversarial loss
-                    adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits, task_name='sentiment')
+                    batch_inputs = (b_ids, b_mask)
+                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sst')
                     adv_loss.backward(retain_graph=True)
 
                     # bregman divergence
-                    breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits, task_name='sentiment')
+                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sst')
                     breg_div.backward(retain_graph=True)
 
                     optimizer.step()
@@ -399,7 +400,7 @@ def train_multitask(args):
             
             print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}") 
 
-            del loss; del adv_loss; del breg_div; del logits
+            # del loss; del logits
 
 def test_model(args):
     with torch.no_grad():
@@ -450,7 +451,7 @@ def get_args():
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
     parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5",
                         default=1e-5)
-    parser.add_argument("--extension", type=str, default="smart")
+    parser.add_argument("--extension", type=str, default="default")
 
     # adversarial regularization
     parser.add_argument('--pgd_k', type=int, default=1)
@@ -458,7 +459,7 @@ def get_args():
     parser.add_argument('--pgd_lambda', type=float, default=10)
 
     # bregman momentum
-    parser.add_argument('--mbpp_beta', type=float, default=0.99)
+    parser.add_argument('--mbpp_beta', type=float, default=0.995)
     parser.add_argument('--mbpp_mu', type=float, default=1)
 
     args = parser.parse_args()
