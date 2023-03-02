@@ -13,7 +13,7 @@ from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
 
-import proximateGD, bergmanDiv
+import proximateGD, bregmanDiv
 
 TQDM_DISABLE = False
 
@@ -258,9 +258,10 @@ def train(args):
 
     model = BertSentimentClassifier(config)
     model = model.to(device)
-    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
-    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
-    
+
+    if args.extension in ['smart', 'rrobin-smart']:
+        pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
+        mbpp = bregmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
 
     lr = args.lr
     best_dev_acc = 0
@@ -287,14 +288,15 @@ def train(args):
             loss.backward(retain_graph=True)  # added retain_graph=True
 
             # smart regularization
-            if args.extension == 'smart':
+            if args.extension in ['smart', 'rrobin-smart']:
 
                 # adversarial loss
-                adv_loss = pgd.max_loss_reg(b_ids, b_mask, logits)
+                batch_inputs = (b_ids, b_mask)
+                adv_loss = pgd.max_loss_reg(batch_inputs, logits)
                 adv_loss.backward(retain_graph=True)
 
                 # bregman divergence
-                breg_div = mbpp.bregman_divergence((b_ids, b_mask), logits)
+                breg_div = mbpp.bregman_divergence(batch_inputs, logits)
                 breg_div.backward(retain_graph=True)
                 
                 optimizer.step()

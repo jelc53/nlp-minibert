@@ -90,7 +90,7 @@ class MultitaskBERT(nn.Module):
         '''
         ### TODO
         hidden = self.forward(input_ids, attention_mask)
-        logits = self.sentiment_classifier(hidden)
+        logits = self.sentiment_classifier(hidden) 
 
         return logits
 
@@ -106,7 +106,6 @@ class MultitaskBERT(nn.Module):
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
         features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
-
         logit = self.paraphrase_classifier(features)
         
         return logit
@@ -122,10 +121,9 @@ class MultitaskBERT(nn.Module):
         hidden_1 = self.forward(input_ids_1, attention_mask_1)
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
-        features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
-        logit = self.similarity_classifier(features)
-        # logit = F.cosine_similarity(hidden_1, hidden_2)
-
+        #features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+        #logit = self.similarity_classifier(features)
+        logit = F.cosine_similarity(hidden_1, hidden_2)
         return logit
 
 def save_model(model, optimizer, args, config, filepath):
@@ -201,8 +199,10 @@ def train_multitask(args):
 
     model = MultitaskBERT(config)
     model = model.to(device)
-    pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
-    mbpp = bregmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
+
+    if args.extension in ['smart', 'rrobin-smart']:
+        pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
+        mbpp = bregmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr)
@@ -455,7 +455,7 @@ def get_args():
     # adversarial regularization
     parser.add_argument('--pgd_k', type=int, default=1)
     parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
-    parser.add_argument('--pgd_lambda', type=float, default=5)
+    parser.add_argument('--pgd_lambda', type=float, default=10)
 
     # bregman momentum
     parser.add_argument('--mbpp_beta', type=float, default=0.99)
