@@ -16,7 +16,7 @@ from datasets import SentenceClassificationDataset, SentencePairDataset, \
 
 from evaluation import model_eval_sst, model_eval_multitask, test_model_multitask
 
-import proximateGD, bergmanDiv
+import proximateGD, bregmanDiv
 
 
 TQDM_DISABLE=False
@@ -202,7 +202,7 @@ def train_multitask(args):
     model = MultitaskBERT(config)
     model = model.to(device)
     pgd = proximateGD.AdversarialReg(model, args.pgd_epsilon, args.pgd_lambda)
-    mbpp = bergmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
+    mbpp = bregmanDiv.MBPP(model, args.mbpp_beta, args.mbpp_mu)
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr)
@@ -348,6 +348,7 @@ def train_multitask(args):
             print(f"Epoch {epoch}: paraphrase -->> train loss :: {train_loss_para :.3f}, train acc :: {train_acc_para :.3f}, dev acc :: {dev_acc_para :.3f}") 
             print(f"Epoch {epoch}: similarity -->> train loss :: {train_loss_sts :.3f}, train acc :: {train_acc_sts :.3f}, dev acc :: {dev_acc_sts :.3f}") 
 
+            del loss; del adv_loss; del breg_div; del logits
 
     else:  # default train only on sentiment dataset
 
@@ -398,6 +399,7 @@ def train_multitask(args):
             
             print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}") 
 
+            del loss; del adv_loss; del breg_div; del logits
 
 def test_model(args):
     with torch.no_grad():
@@ -455,7 +457,7 @@ def get_args():
     parser.add_argument('--pgd_epsilon', type=float, default=1e-5)
     parser.add_argument('--pgd_lambda', type=float, default=5)
 
-    # bergman momentum
+    # bregman momentum
     parser.add_argument('--mbpp_beta', type=float, default=0.99)
     parser.add_argument('--mbpp_mu', type=float, default=1)
 
