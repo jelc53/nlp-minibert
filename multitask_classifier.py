@@ -71,7 +71,6 @@ class MultitaskBERT(nn.Module):
             torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
 
-
     def forward(self, input_ids, attention_mask):
         'Takes a batch of sentences and produces embeddings for them.'
         # The final BERT embedding is the hidden state of [CLS] token (the first token)
@@ -82,7 +81,6 @@ class MultitaskBERT(nn.Module):
         out_dict = self.bert(input_ids, attention_mask)
 
         return out_dict['pooler_output']
-
 
     def predict_sentiment(self, input_ids, attention_mask):
         '''Given a batch of sentences, outputs logits for classifying sentiment.
@@ -95,7 +93,6 @@ class MultitaskBERT(nn.Module):
         logits = self.sentiment_classifier(hidden)
 
         return logits
-
 
     def predict_paraphrase(self,
                            input_ids_1, attention_mask_1,
@@ -114,7 +111,6 @@ class MultitaskBERT(nn.Module):
         
         return logit
 
-
     def predict_similarity(self,
                            input_ids_1, attention_mask_1,
                            input_ids_2, attention_mask_2):
@@ -127,12 +123,10 @@ class MultitaskBERT(nn.Module):
         hidden_2 = self.forward(input_ids_2, attention_mask_2)
 
         features = torch.cat((hidden_1, hidden_2, torch.sub(hidden_1, hidden_2)), dim = 1)
+        logit = self.similarity_classifier(features)
+        # logit = F.cosine_similarity(hidden_1, hidden_2)
 
-        #logit = self.similarity_classifier(features)
-        logit = F.CosineSimilarity(hidden_1, hidden_2)
         return logit
-
-
 
 def save_model(model, optimizer, args, config, filepath):
     save_info = {
@@ -323,33 +317,33 @@ def train_multitask(args):
 
                 num_batches += 1
 
-        train_loss_sst = train_loss_sst / (num_batches)
-        train_loss_para = train_loss_para / (num_batches)
-        train_loss_sts = train_loss_sts / (num_batches)
+            train_loss_sst = train_loss_sst / (num_batches)
+            train_loss_para = train_loss_para / (num_batches)
+            train_loss_sts = train_loss_sts / (num_batches)
 
-        (train_acc_para, _, _, 
-         train_acc_sst, _, _, 
-         train_acc_sts, _, _) = model_eval_multitask(sst_train_dataloader, 
-                                                     para_train_dataloader, 
-                                                     sts_train_dataloader, 
-                                                     model,
-                                                     device)
-         
-        (dev_acc_para, _, _, 
-         dev_acc_sst, _, _, 
-         dev_acc_sts, _, _) = model_eval_multitask(sst_dev_dataloader, 
-                                                   para_dev_dataloader, 
-                                                   sts_dev_dataloader, 
-                                                   model,
-                                                   device)
+            (train_acc_para, _, _, 
+            train_acc_sst, _, _, 
+            train_acc_sts, _, _) = model_eval_multitask(sst_train_dataloader, 
+                                                        para_train_dataloader, 
+                                                        sts_train_dataloader, 
+                                                        model,
+                                                        device)
+            
+            (dev_acc_para, _, _, 
+            dev_acc_sst, _, _, 
+            dev_acc_sts, _, _) = model_eval_multitask(sst_dev_dataloader, 
+                                                    para_dev_dataloader, 
+                                                    sts_dev_dataloader, 
+                                                    model,
+                                                    device)
 
-        if np.mean([dev_acc_sst, dev_acc_para, dev_acc_sts]) > best_dev_acc:
-            best_dev_acc = dev_acc
-            save_model(model, optimizer, args, config, args.filepath)
+            if np.mean([dev_acc_sst, dev_acc_para, dev_acc_sts]) > best_dev_acc:
+                best_dev_acc = dev_acc
+                save_model(model, optimizer, args, config, args.filepath)
 
-        print(f"Epoch {epoch}: sentiment -->> train loss :: {train_loss_sst :.3f}, train acc :: {train_acc_sst :.3f}, dev acc :: {dev_acc_sst :.3f}") 
-        print(f"Epoch {epoch}: paraphrase -->> train loss :: {train_loss_para :.3f}, train acc :: {train_acc_para :.3f}, dev acc :: {dev_acc_para :.3f}") 
-        print(f"Epoch {epoch}: similarity -->> train loss :: {train_loss_sts :.3f}, train acc :: {train_acc_sts :.3f}, dev acc :: {dev_acc_sts :.3f}") 
+            print(f"Epoch {epoch}: sentiment -->> train loss :: {train_loss_sst :.3f}, train acc :: {train_acc_sst :.3f}, dev acc :: {dev_acc_sst :.3f}") 
+            print(f"Epoch {epoch}: paraphrase -->> train loss :: {train_loss_para :.3f}, train acc :: {train_acc_para :.3f}, dev acc :: {dev_acc_para :.3f}") 
+            print(f"Epoch {epoch}: similarity -->> train loss :: {train_loss_sts :.3f}, train acc :: {train_acc_sts :.3f}, dev acc :: {dev_acc_sts :.3f}") 
 
 
     else:  # default train only on sentiment dataset
@@ -390,16 +384,16 @@ def train_multitask(args):
                 train_loss += loss.item()
                 num_batches += 1
 
-        train_loss = train_loss / (num_batches)
-            
-        train_acc, train_f1, *_ = model_eval_sst(sst_train_dataloader, model, device)
-        dev_acc, dev_f1, *_ = model_eval_sst(sst_dev_dataloader, model, device)
+            train_loss = train_loss / (num_batches)
+                
+            train_acc, train_f1, *_ = model_eval_sst(sst_train_dataloader, model, device)
+            dev_acc, dev_f1, *_ = model_eval_sst(sst_dev_dataloader, model, device)
 
-        if dev_acc > best_dev_acc:
-            best_dev_acc = dev_acc
-            save_model(model, optimizer, args, config, args.filepath)
-        
-        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}") 
+            if dev_acc > best_dev_acc:
+                best_dev_acc = dev_acc
+                save_model(model, optimizer, args, config, args.filepath)
+            
+            print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}") 
 
 
 def test_model(args):
