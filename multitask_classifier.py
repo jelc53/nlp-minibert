@@ -288,7 +288,7 @@ def train_multitask(args):
 
                 optimizer.zero_grad()
                 logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
-                b_labels_scaled = b_labels / 5.0
+                b_labels_scaled = (b_labels / 5.0).type(torch.float32)
                 # corr = np.corrcoef(logits.flatten().detach().numpy(),b_labels.detach().numpy())[1][0]
                 loss = F.mse_loss(logits.flatten(), b_labels_scaled.view(-1))
 
