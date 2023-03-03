@@ -61,7 +61,7 @@ def model_eval_sst(dataloader, model, device):
 def model_eval_multitask(sentiment_dataloader,
                          paraphrase_dataloader,
                          sts_dataloader,
-                         model, device):
+                         model, device, print_bool=True):
     model.eval()  # switch to eval model, will turn off randomness like dropout
 
     with torch.no_grad():
@@ -142,9 +142,10 @@ def model_eval_multitask(sentiment_dataloader,
 
         sentiment_accuracy = np.mean(np.array(sst_y_pred) == np.array(sst_y_true))
 
-        print(f'Paraphrase detection accuracy: {paraphrase_accuracy:.3f}')
-        print(f'Sentiment classification accuracy: {sentiment_accuracy:.3f}')
-        print(f'Semantic Textual Similarity correlation: {sts_corr:.3f}')
+        if print_bool:
+            print(f'Paraphrase detection accuracy: {paraphrase_accuracy:.3f}')
+            print(f'Sentiment classification accuracy: {sentiment_accuracy:.3f}')
+            print(f'Semantic Textual Similarity correlation: {sts_corr:.3f}')
 
         return (paraphrase_accuracy, para_y_pred, para_sent_ids,
                 sentiment_accuracy,sst_y_pred, sst_sent_ids,
