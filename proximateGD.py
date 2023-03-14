@@ -64,7 +64,6 @@ class AdversarialReg(object):
             if param.requires_grad and emb_name in name:
                 noise = param.data.new(param.size()).normal_(0,1) * self.sigma
                 param.data.add_(noise)
-                #param.data = self.project(name, param.data)
 
     def project(self, param_name, param_data):
         change = param_data - self.embed_backup[param_name]
@@ -89,7 +88,7 @@ class AdversarialReg(object):
                          F.log_softmax(inputs, dim = -1),
                          reduction = 'batchmean', 
                          log_target = True)
-        return loss*self.lambda_
+        return loss
 
     def symmetric_kl_check(self, inputs, target, reduce = True):
         epsilon = 1e-6
@@ -99,9 +98,9 @@ class AdversarialReg(object):
         rp = -(1.0 / (p + epsilon) - 1 + epsilon).detach().log()
         ry = -(1.0 / (y + epsilon) - 1 + epsilon).detach().log()
         if reduce:
-            return ((p * (rp - ry) * 2).sum() / bs)*self.lambda_
+            return ((p * (rp - ry) * 2).sum() / bs)
         else:
-            return ((p * (rp - ry) * 2).sum())*self.lambda_
+            return ((p * (rp - ry) * 2).sum())
 
 
     def max_loss_reg(self, batch, logits, emb_name = 'embedding.', task_name='default'):
@@ -139,7 +138,12 @@ class AdversarialReg(object):
 
         #Calculate the final loss as implied by the adversarial regularizer.
         adv_logits = model_prediction(self.model, batch, task_name)  # self.model.predict_sentiment(b_ids, b_mask)
-        adv_loss = self.symmetric_kl(adv_logits, logits.detach())
+        
+        adv_loss = 0
+        if task_name != 'sts':
+            adv_loss = self.symmetric_kl(adv_logits, logits.detach())
+        else:
+            adv_loss = torch.mean((logits - adv_logits)**2)
 
         #Restore to the original embeddigns
         self.restore_embeddings(emb_name)
@@ -147,5 +151,5 @@ class AdversarialReg(object):
         #Allow dropout again
         self.model.train()
 
-        return adv_loss
+        return self.lambda_*adv_loss
 
