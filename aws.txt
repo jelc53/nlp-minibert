@@ -1,10 +1,15 @@
 chmod 400 ~/.ssh/cs224n.pem
 ssh -i ~/.ssh/cs224n.pem ubuntu@ec2-35-90-118-72.us-west-2.compute.amazonaws.com
 scp -i /path/key-pair-name.pem /path/my-file.txt ec2-user@instance-public-dns-name:path/
+ssh -i ~/.ssh/cs224n.pem /path/my-file.txt ubuntu@ec2-35-90-118-72.us-west-2.compute.amazonaws.com:path/
 
 nvidia-smi
 conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.6 -c pytorch -c conda-forge
 
+python classifier.py --batch_size 64 --option pretrain --lr 1e-3 --use_gpu
+python classifier.py --batch_size 64 --option finetune --use_gpu
+python multitask_classifier.py --batch_size 64 --option pretrain --lr 1e-3 --use_gpu
 python multitask_classifier.py --batch_size 64 --option finetune --use_gpu
-
-
+python multitask_classifier.py --batch_size 64 --option finetune --extension rrobin --use_gpu
+python multitask_classifier.py --batch_size 8 --option finetune --extension smart --use_gp
+python multitask_classifier.py --batch_size 8 --option finetune --extension rrobin-smart --use_gp
