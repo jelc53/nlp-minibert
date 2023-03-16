@@ -150,34 +150,37 @@ def train_multitask(args):
     if args.extension in ['rrobin', 'rrobin-smart']:
         # Args batch size is largest batch size; choose num_iterations as max len data divided by batch size
         # Update other datasets' batch size based on len data and num iterations
-        num_iterations = min(len(sts_train_data), math.floor(len(para_train_data)/args.batch_size))
-        batch_size_sst = math.floor(len(sst_train_data)/num_iterations)
-        batch_size_sts = math.floor(len(sts_train_data)/num_iterations)
-        #num_iterations = math.floor(len(sts_train_data) / args.batch_size)
-        #num_samples = num_iterations * args.batch_size
+        if args.batch_type == "full":
+            num_iterations = min(len(sts_train_data), math.floor(len(para_train_data)/args.batch_size))
+            batch_size_sst = math.floor(len(sst_train_data)/num_iterations)
+            batch_size_sts = math.floor(len(sts_train_data)/num_iterations)
 
-        # sentiment dataset
-        #sst_train_data = SentenceClassificationDataset(random.sample(sst_train_data, num_samples), args)
-        sst_train_data = SentenceClassificationDataset(sst_train_data, args)
-        #sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
-        sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=batch_size_sst, collate_fn=sst_train_data.collate_fn)
+            sst_train_data = SentenceClassificationDataset(sst_train_data, args)
+            sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=batch_size_sst, collate_fn=sst_train_data.collate_fn)
+
+            para_train_data = SentencePairDataset(para_train_data, args)
+            
+            sts_train_data = SentencePairDataset(sts_train_data, args, isRegression=True)
+            sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=batch_size_sts, collate_fn=sts_train_data.collate_fn)
+        else:
+            num_iterations = math.floor(len(sts_train_data) / args.batch_size)
+            num_samples = num_iterations * args.batch_size
+            
+            sst_train_data = SentenceClassificationDataset(random.sample(sst_train_data, num_samples), args)
+            sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
+
+            para_train_data = SentencePairDataset(random.sample(para_train_data, num_samples), args)
+            
+            sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_samples), args, isRegression=True)
+            sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
 
         sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
         sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sst_dev_data.collate_fn)
 
-        # paraphrase dataset
-        #para_train_data = SentencePairDataset(random.sample(para_train_data, num_samples), args)
-        para_train_data = SentencePairDataset(para_train_data, args)
         para_train_dataloader = DataLoader(para_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=para_train_data.collate_fn)
 
         para_dev_data = SentencePairDataset(para_dev_data, args)
         para_dev_dataloader = DataLoader(para_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=para_dev_data.collate_fn)
-
-        # similarity dataset
-        #sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_samples), args, isRegression=True)
-        sts_train_data = SentencePairDataset(sts_train_data, args, isRegression=True)
-        #sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
-        sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=batch_size_sts, collate_fn=sts_train_data.collate_fn)
 
         sts_dev_data = SentencePairDataset(sts_dev_data, args, isRegression=True)
         sts_dev_dataloader = DataLoader(sts_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sts_dev_data.collate_fn)
@@ -243,7 +246,6 @@ def train_multitask(args):
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
                 if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
-
                     # adversarial loss
                     batch_inputs = (b_ids, b_mask)
                     adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sst')
@@ -455,6 +457,7 @@ def get_args():
 
     # hyper parameters
     parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
+    parser.add_argument("--batch_type", type=str, default="small")
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
     parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5",
                         default=1e-5)
