@@ -64,10 +64,7 @@ class MultitaskBERT(nn.Module):
 
         self.sentiment_classifier = torch.nn.Sequential(
             torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(BERT_HIDDEN_SIZE, 32),
-            torch.nn.LeakyReLU(),
-            torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(32, N_SENTIMENT_CLASSES)
+            torch.nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
         )
 
         self.paraphrase_classifier = torch.nn.Sequential(
