@@ -190,23 +190,28 @@ def train_multitask(args):
     # Create the data and its corresponding datasets and dataloader
     sst_train_data, num_labels,para_train_data, sts_train_data = load_multitask_data(args.sst_train,args.para_train,args.sts_train, split ='train')
     sst_dev_data, num_labels,para_dev_data, sts_dev_data = load_multitask_data(args.sst_dev,args.para_dev,args.sts_dev, split ='train')
+    start_iteration_sst, start_iteration_sts, start_iteration_smart = 0, 0, 0
 
     # expand finetuning to include all multitask datasets
     if args.extension in ['rrobin', 'rrobin-smart']:
         # Args batch size is largest batch size; choose num_iterations as max len data divided by batch size
         # Update other datasets' batch size based on len data and num iterations
         if args.batch_type == "full":
-            num_iterations = min(len(sts_train_data), math.floor(len(para_train_data)/args.batch_size))
-            batch_size_sst = math.floor(len(sst_train_data)/num_iterations)
-            batch_size_sts = math.floor(len(sts_train_data)/num_iterations)
+            # num_iterations = min(len(sts_train_data), math.floor(len(para_train_data)/args.batch_size))
+            num_iterations = math.floor(len(para_train_data)/args.batch_size)
+            # batch_size_sst = math.floor(len(sst_train_data)/num_iterations)
+            # batch_size_sts = math.floor(len(sts_train_data)/num_iterations)
+            start_iteration_sst = num_iterations - math.floor(len(sst_train_data)/args.batch_size)
+            start_iteration_sts = num_iterations - math.floor(len(sts_train_data)/args.batch_size)
+            start_iteration_smart = min(start_iteration_sst, start_iteration_sts)
 
             sst_train_data = SentenceClassificationDataset(sst_train_data, args)
-            sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=batch_size_sst, collate_fn=sst_train_data.collate_fn)
+            sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
 
             para_train_data = SentencePairDataset(para_train_data, args)
             
             sts_train_data = SentencePairDataset(sts_train_data, args, isRegression=True)
-            sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=batch_size_sts, collate_fn=sts_train_data.collate_fn)
+            sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
         else:
             num_iterations = math.floor(len(sts_train_data) / args.batch_size)
             num_samples = num_iterations * args.batch_size
@@ -278,36 +283,37 @@ def train_multitask(args):
             sts_iterator = iter(sts_train_dataloader)
 
             for _ in tqdm(range(num_iterations), desc=f'train-{epoch}', disable=TQDM_DISABLE):
-                ### sentiment ----------------------------------------------
-                batch = next(sst_iterator)
-                b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
-                b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
+                if num_batches >= start_iteration_sst:  #TODO: can only execute if statement when batch_type=full
+                    ### sentiment ----------------------------------------------
+                    batch = next(sst_iterator)
+                    b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
+                    b_ids, b_mask, b_labels = b_ids.to(device), b_mask.to(device), b_labels.to(device)
 
-                optimizer.zero_grad()
-                logits = model.predict_sentiment(b_ids, b_mask)
-                loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
+                    optimizer.zero_grad()
+                    logits = model.predict_sentiment(b_ids, b_mask)
+                    loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-                loss.backward(retain_graph=True)  # added retain_graph=True
+                    loss.backward(retain_graph=True)  # added retain_graph=True
 
-                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
-                    # adversarial loss
-                    batch_inputs = (b_ids, b_mask)
-                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sst')
-                    adv_loss.backward(retain_graph=True)
+                    if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
+                        # adversarial loss
+                        batch_inputs = (b_ids, b_mask)
+                        adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sst')
+                        adv_loss.backward(retain_graph=True)
 
-                    # bregman divergence
-                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sst')
-                    breg_div.backward(retain_graph=True)
+                        # bregman divergence
+                        breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sst')
+                        breg_div.backward(retain_graph=True)
 
-                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
-                    optimizer.step()
-                    mbpp.apply_momentum(model.named_parameters())
+                        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
+                        optimizer.step()
+                        mbpp.apply_momentum(model.named_parameters())
 
-                else:  # default implementation
-                    #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
-                    optimizer.step()
+                    else:  # default implementation
+                        #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
+                        optimizer.step()
 
-                train_loss_sst += loss.item()
+                    train_loss_sst += loss.item()
 
                 ### paraphrase ----------------------------------------------
                 batch = next(para_iterator)
@@ -321,7 +327,7 @@ def train_multitask(args):
 
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
-                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
+                if args.extension in ['rrobin-smart', 'smart'] and num_batches >= start_iteration_smart:  # smart regularization
 
                     # adversarial loss
                     batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
@@ -342,39 +348,40 @@ def train_multitask(args):
 
                 train_loss_para += loss.item()
 
-                ### similarity ----------------------------------------------
-                batch = next(sts_iterator)
-                (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
-                b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
+                if num_batches >= start_iteration_sts:
+                    ### similarity ----------------------------------------------
+                    batch = next(sts_iterator)
+                    (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
+                    b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
 
-                optimizer.zero_grad()
-                logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
-                #logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
-                b_labels_scaled = (b_labels/5.0).type(torch.float32)
-                loss = F.mse_loss(logits.flatten(), b_labels_scaled.view(-1))
+                    optimizer.zero_grad()
+                    logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+                    #logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
+                    b_labels_scaled = (b_labels/5.0).type(torch.float32)
+                    loss = F.mse_loss(logits.flatten(), b_labels_scaled.view(-1))
 
-                loss.backward(retain_graph=True)  # added retain_graph=True
+                    loss.backward(retain_graph=True)  # added retain_graph=True
 
-                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
+                    if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
 
-                    # adversarial loss
-                    batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
-                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sts')
-                    adv_loss.backward(retain_graph=True)
+                        # adversarial loss
+                        batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
+                        adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='sts')
+                        adv_loss.backward(retain_graph=True)
 
-                    # bregman divergence 
-                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sts')
-                    breg_div.backward(retain_graph=True)
+                        # bregman divergence 
+                        breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='sts')
+                        breg_div.backward(retain_graph=True)
 
-                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
-                    optimizer.step()
-                    mbpp.apply_momentum(model.named_parameters())
+                        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
+                        optimizer.step()
+                        mbpp.apply_momentum(model.named_parameters())
 
-                else:  # default implementation
-                    #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
-                    optimizer.step()
+                    else:  # default implementation
+                        #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
+                        optimizer.step()
 
-                train_loss_sts += loss.item()
+                    train_loss_sts += loss.item()
 
                 num_batches += 1
 
