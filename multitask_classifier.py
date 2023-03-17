@@ -56,9 +56,18 @@ class MultitaskBERT(nn.Module):
                 param.requires_grad = True
         ### TODO
 
+        self.sent_pair_layer = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(4*BERT_HIDDEN_SIZE, BERT_HIDDEN_SIZE),
+            torch.nn.LeakyReLU()
+        )
+
         self.sentiment_classifier = torch.nn.Sequential(
             torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
+            torch.nn.Linear(BERT_HIDDEN_SIZE, 32),
+            torch.nn.LeakyReLU(),
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(32, N_SENTIMENT_CLASSES)
         )
 
         self.paraphrase_classifier = torch.nn.Sequential(
@@ -66,7 +75,19 @@ class MultitaskBERT(nn.Module):
             torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
 
+        self.para_classifier = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(BERT_HIDDEN_SIZE, 1)
+        )
+
         self.similarity_classifier = torch.nn.CosineSimilarity(dim=1)
+
+        self.sim_classifier = torch.nn.Sequential(
+            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Linear(BERT_HIDDEN_SIZE, 1),
+            torch.nn.Sigmoid()
+        )
+        
 
     def forward(self, input_ids, attention_mask):
         'Takes a batch of sentences and produces embeddings for them.'
@@ -91,6 +112,26 @@ class MultitaskBERT(nn.Module):
 
         return logits
 
+
+    def sent_pair_linear(self, input_ids_1, attention_mask_1,
+                               input_ids_2, attention_mask_2, device):
+        hidden_1 = self.forward(input_ids_1, attention_mask_1).to(device)
+        hidden_2 = self.forward(input_ids_2, attention_mask_2).to(device)
+
+        eps = 1e-8
+        norm_h1 = (torch.norm(hidden_1, dim=1) + eps).unsqueeze(1).to(device)
+        norm_h2 = (torch.norm(hidden_2, dim=1) + eps).unsqueeze(1).to(device)
+        
+        features = torch.cat((hidden_1, hidden_2, torch.abs(torch.sub(hidden_1, hidden_2)), 
+                                (hidden_1/norm_h1) * (hidden_2/norm_h2)), dim = 1)
+        
+        emb = self.sent_pair_layer(features).to(device)
+
+        return emb
+
+    def predict_para(self, emb):
+        return self.para_classifier(emb)
+
     def predict_paraphrase(self,
                            input_ids_1, attention_mask_1,
                            input_ids_2, attention_mask_2):
@@ -106,6 +147,9 @@ class MultitaskBERT(nn.Module):
         logit = self.paraphrase_classifier(features)
 
         return logit
+
+    def predict_sim(self, emb):
+        return self.sim_classifier(emb)
 
     def predict_similarity(self,
                            input_ids_1, attention_mask_1,
@@ -174,6 +218,7 @@ def train_multitask(args):
             sts_train_data = SentencePairDataset(random.sample(sts_train_data, num_samples), args, isRegression=True)
             sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
 
+
         sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
         sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size, collate_fn=sst_dev_data.collate_fn)
 
@@ -233,7 +278,6 @@ def train_multitask(args):
             sts_iterator = iter(sts_train_dataloader)
 
             for _ in tqdm(range(num_iterations), desc=f'train-{epoch}', disable=TQDM_DISABLE):
-
                 ### sentiment ----------------------------------------------
                 batch = next(sst_iterator)
                 b_ids, b_mask, b_labels = (batch['token_ids'], batch['attention_mask'], batch['labels'])
@@ -259,39 +303,10 @@ def train_multitask(args):
                     mbpp.apply_momentum(model.named_parameters())
 
                 else:  # default implementation
+                    #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
                     optimizer.step()
 
                 train_loss_sst += loss.item()
-
-                ### paraphrase ----------------------------------------------
-                batch = next(para_iterator)
-                (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
-                b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
-
-                optimizer.zero_grad()
-                logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
-                loss = F.binary_cross_entropy(logits.squeeze().sigmoid(), b_labels.view(-1).type(torch.float32), reduction='sum') / args.batch_size
-
-                loss.backward(retain_graph=True)  # added retain_graph=True
-
-                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
-
-                    # adversarial loss
-                    batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
-                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='para')
-                    adv_loss.backward(retain_graph=True)
-
-                    # bregman divergence
-                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='para')
-                    breg_div.backward(retain_graph=True)
-
-                    optimizer.step()
-                    mbpp.apply_momentum(model.named_parameters())
-
-                else:  # default implementation
-                    optimizer.step()
-
-                train_loss_para += loss.item()
 
                 ### similarity ----------------------------------------------
                 batch = next(sts_iterator)
@@ -300,6 +315,7 @@ def train_multitask(args):
 
                 optimizer.zero_grad()
                 logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+                #logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
                 b_labels_scaled = (b_labels/5.0).type(torch.float32)
                 loss = F.mse_loss(logits.flatten(), b_labels_scaled.view(-1))
 
@@ -320,9 +336,42 @@ def train_multitask(args):
                     mbpp.apply_momentum(model.named_parameters())
 
                 else:  # default implementation
+                    #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
                     optimizer.step()
 
                 train_loss_sts += loss.item()
+
+                ### paraphrase ----------------------------------------------
+                batch = next(para_iterator)
+                (b_ids1, b_mask1, b_ids2, b_mask2, b_labels) = (batch['token_ids_1'], batch['attention_mask_1'], batch['token_ids_2'], batch['attention_mask_2'], batch['labels'])
+                b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+                #logits = model.predict_para(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
+                loss = F.binary_cross_entropy(logits.squeeze().sigmoid(), b_labels.view(-1).type(torch.float32), reduction='sum') / args.batch_size
+
+                loss.backward(retain_graph=True)  # added retain_graph=True
+
+                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
+
+                    # adversarial loss
+                    batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
+                    adv_loss = pgd.max_loss_reg(batch_inputs, logits, task_name='para')
+                    adv_loss.backward(retain_graph=True)
+
+                    # bregman divergence
+                    breg_div = mbpp.bregman_divergence(batch_inputs, logits, task_name='para')
+                    breg_div.backward(retain_graph=True)
+
+                    optimizer.step()
+                    mbpp.apply_momentum(model.named_parameters())
+
+                else:  # default implementation
+                    #nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
+                    optimizer.step()
+
+                train_loss_para += loss.item()
 
                 num_batches += 1
 
