@@ -58,25 +58,26 @@ class MultitaskBERT(nn.Module):
 
         self.sent_pair_layer = torch.nn.Sequential(
             torch.nn.Dropout(config.hidden_dropout_prob),
-            torch.nn.Linear(4*BERT_HIDDEN_SIZE, BERT_HIDDEN_SIZE),
-            torch.nn.LeakyReLU()
+            torch.nn.Linear(4*BERT_HIDDEN_SIZE, BERT_HIDDEN_SIZE)
         )
 
         self.sentiment_classifier = torch.nn.Sequential(
             #torch.nn.Dropout(config.hidden_dropout_prob),
             #torch.nn.Linear(BERT_HIDDEN_SIZE, 32),
-            #torch.nn.LeakyReLU(),
+            torch.nn.LeakyReLU(),
             torch.nn.Dropout(config.hidden_dropout_prob),
             #torch.nn.Linear(32, N_SENTIMENT_CLASSES)
             torch.nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
         )
 
         self.paraphrase_classifier = torch.nn.Sequential(
+            torch.nn.LeakyReLU(),
             torch.nn.Dropout(config.hidden_dropout_prob),
             torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
 
         self.para_classifier = torch.nn.Sequential(
+            torch.nn.LeakyReLU(),
             torch.nn.Dropout(config.hidden_dropout_prob),
             torch.nn.Linear(BERT_HIDDEN_SIZE, 1)
         )
@@ -84,6 +85,7 @@ class MultitaskBERT(nn.Module):
         self.similarity_classifier = torch.nn.CosineSimilarity(dim=1)
 
         self.sim_classifier = torch.nn.Sequential(
+            torch.nn.LeakyReLU(),
             torch.nn.Dropout(config.hidden_dropout_prob),
             torch.nn.Linear(BERT_HIDDEN_SIZE, 1),
             torch.nn.Sigmoid()
@@ -327,7 +329,7 @@ def train_multitask(args):
 
                 loss.backward(retain_graph=True)  # added retain_graph=True
 
-                if args.extension in ['rrobin-smart', 'smart'] and num_batches >= start_iteration_smart:  # smart regularization
+                if args.extension in ['rrobin-smart', 'smart']:  # smart regularization
 
                     # adversarial loss
                     batch_inputs = (b_ids1, b_mask1, b_ids2, b_mask2)
