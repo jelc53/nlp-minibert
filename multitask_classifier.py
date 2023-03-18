@@ -211,13 +211,13 @@ def train_multitask(args):
             sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
 
             para_train_data = SentencePairDataset(para_train_data, args)
-            
+
             sts_train_data = SentencePairDataset(sts_train_data, args, isRegression=True)
             sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sts_train_data.collate_fn)
         else:
             num_iterations = math.floor(len(sts_train_data) / args.batch_size)
             num_samples = num_iterations * args.batch_size
-            
+
             sst_train_data = SentenceClassificationDataset(random.sample(sst_train_data, num_samples), args)
             sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size, collate_fn=sst_train_data.collate_fn)
 
