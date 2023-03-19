@@ -71,7 +71,7 @@ class MultitaskBERT(nn.Module):
         )
 
         self.paraphrase_classifier = torch.nn.Sequential(
-            torch.nn.LeakyReLU(),
+            #torch.nn.LeakyReLU(),
             torch.nn.Dropout(config.hidden_dropout_prob),
             torch.nn.Linear(BERT_HIDDEN_SIZE*3, 1)
         )
@@ -86,7 +86,7 @@ class MultitaskBERT(nn.Module):
 
         self.sim_classifier = torch.nn.Sequential(
             torch.nn.LeakyReLU(),
-            torch.nn.Dropout(config.hidden_dropout_prob),
+            torch.nn.Dropout(0.1),
             torch.nn.Linear(BERT_HIDDEN_SIZE, 1),
             torch.nn.Sigmoid()
         )
@@ -323,8 +323,8 @@ def train_multitask(args):
                 b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
 
                 optimizer.zero_grad()
-                logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
-                #logits = model.predict_para(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
+                #logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+                logits = model.predict_para(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
                 loss = F.binary_cross_entropy(logits.squeeze().sigmoid(), b_labels.view(-1).type(torch.float32), reduction='sum') / args.batch_size
 
                 loss.backward(retain_graph=True)  # added retain_graph=True
@@ -357,8 +357,8 @@ def train_multitask(args):
                     b_ids1, b_mask1, b_ids2, b_mask2, b_labels = b_ids1.to(device), b_mask1.to(device), b_ids2.to(device), b_mask2.to(device), b_labels.to(device)
 
                     optimizer.zero_grad()
-                    logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
-                    #logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
+                    #logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+                    logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
                     b_labels_scaled = (b_labels/5.0).type(torch.float32)
                     loss = F.mse_loss(logits.flatten(), b_labels_scaled.view(-1))
 
