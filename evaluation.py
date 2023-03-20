@@ -82,7 +82,8 @@ def model_eval_multitask(sentiment_dataloader,
             b_ids2 = b_ids2.to(device)
             b_mask2 = b_mask2.to(device)
 
-            logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+            #logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+            logits = model.predict_para(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
             y_hat = logits.sigmoid().round().flatten().cpu().numpy()
             b_labels = b_labels.flatten().cpu().numpy()
 
@@ -110,9 +111,10 @@ def model_eval_multitask(sentiment_dataloader,
             b_ids2 = b_ids2.to(device)
             b_mask2 = b_mask2.to(device)
 
-            logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+            #logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+            logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
             y_hat = logits.flatten().cpu().numpy()
-            b_labels = b_labels.flatten().cpu().numpy()
+            b_labels = (b_labels/5.0).flatten().cpu().numpy()
 
             sts_y_pred.extend(y_hat)
             sts_y_true.extend(b_labels)
@@ -175,7 +177,8 @@ def model_eval_test_multitask(sentiment_dataloader,
             b_ids2 = b_ids2.to(device)
             b_mask2 = b_mask2.to(device)
 
-            logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+            #logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+            logits = model.predict_para(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
             y_hat = logits.sigmoid().round().flatten().cpu().numpy()
 
             para_y_pred.extend(y_hat)
@@ -199,7 +202,8 @@ def model_eval_test_multitask(sentiment_dataloader,
             b_ids2 = b_ids2.to(device)
             b_mask2 = b_mask2.to(device)
 
-            logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+            #logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+            logits = model.predict_sim(model.sent_pair_linear(b_ids1, b_mask1, b_ids2, b_mask2, device))
             y_hat = logits.flatten().cpu().numpy()
 
             sts_y_pred.extend(y_hat)
