@@ -1,0 +1,312 @@
+% Unofficial UChicago CS Poster Template
+% v1.1.0 released September 8, 2022
+% https://github.com/k4rtik/uchicago-poster
+% a fork of https://github.com/anishathalye/gemini
+
+\documentclass[final]{beamer}
+
+% ====================
+% Packages
+% ====================
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[size=custom,width=120,height=72,scale=1.0]{beamerposter}
+\usetheme{gemini}
+\usecolortheme{uchicago}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{bm}
+%\usepackage{enumitem}
+\usepackage{doi}
+\usepackage[numbers]{natbib}
+\usepackage[patch=none]{microtype}
+%\usepackage{comment}
+\usepackage{tikz}
+%\usepackage{floatrow}
+\usepackage{sidecap}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{anyfontsize}
+\usepackage{subcaption}
+%\usepackage{outlines}
+\usepackage{IEEEtrantools}
+\usetikzlibrary{arrows,shapes}
+%\usepackage{algorithm}
+%\usepackage{algorithm}
+\RequirePackage{algorithm}
+\RequirePackage{algorithmic}
+\usepackage{pgfplots}
+#\pgfplotsset{compat=newest}
+\pgfplotsset{height=7cm, width=10cm,}
+\usepgfplotslibrary{fillbetween}
+\usepackage{wrapfig}
+%\usepackage{algpseudocode}
+
+\pdfstringdefDisableCommands{%
+\def\translate#1{#1}%
+}
+
+% ====================
+% Lengths
+% ====================
+
+% If you have N columns, choose \sepwidth and \colwidth such that
+% (N+1)*\sepwidth + N*\colwidth = \paperwidth
+\newlength{\sepwidth}
+\newlength{\colwidth}
+\setlength{\sepwidth}{0.025\paperwidth}
+\setlength{\colwidth}{0.46\paperwidth}
+
+\newcommand{\separatorcolumn}{\begin{column}{\sepwidth}\end{column}}
+
+% ====================
+% Title
+% ====================
+
+\title{Convergence Analysis of Deep Q Networks}
+
+\author{Karthik Nataraj (kartnat@stanford.edu) }
+
+
+% ====================
+% Footer (optional)
+% ====================
+
+%\footercontent{
+%  \href{https://www.example.com}{https://www.example.com} \hfill
+%  CS229 Poster session, Stanford University --- XYZ-1234 \hfill
+%  \href{mailto:alyssa.p.hacker@example.com}{alyssa.p.hacker@example.com}}
+% (can be left out to remove footer)
+
+% ====================
+% Logo (optional)
+% ====================
+
+% use this to include logos on the left and/or right side of the header:
+% \logoright{\includegraphics[height=7cm]{logo1.pdf}}
+
+
+% ====================
+% Body
+% ====================
+\newcommand{\DrawWithXYProjections}[7]
+{
+    \coordinate (O) at (#1,#2,#3);  % First endpoint in space
+    \coordinate (E) at (#4,#5,#6);  % Second endpoint in space
+    \coordinate (TBegin) at (0,0,#3);   % First endpoint on axis t
+    \coordinate (TBeginXY) at (#1,#2,#3);   % First endpoint on axis t
+    \coordinate (TBeginX) at (#4,#2,#3); % First endpoint on axis t
+    \coordinate (TBeginY) at (#1,0,#3); % First endpoint on axis t
+    \coordinate (TBegin) at (0,0,#3);   % First endpoint on axis t
+    \coordinate (TEnd) at (0,0,#6); % First endpoint on axis t
+    \coordinate (TEndX) at (0,#5,#3);   % First endpoint on axis t
+    \coordinate (TEndY) at (#4,0,#3);   % First endpoint on axis t
+    \coordinate (TEndXY) at (#4,#5,#3); % First endpoint on axis t
+    \draw[vector,thick,color=blue] (#1,#2,#3) -- (#4,#2,#3) node[midway, below] {\fontsize{7} $\widehat{f}(\theta^*; s,a) = \prod_{\mathcal{F}_{\theta}} \mathcal{T} \widehat{f}(\theta^*; s,a))$};
+    %\draw[vector,thick,color=blue] (#4,#2,#3) -- (TEndXY); % Draw Y projection in XY plane
+    %\prod_{\mathcal{F}_{\theta}} \mathcal{T} \widehat{f}(\theta^*; s,a)$}
+    \draw[vector,thick,color=red] (TBeginXY) -- (TEndXY) node[midway] {\tiny $\prod_{\mathcal{F}_\theta} \mathcal{T}Q^*(s,a)$ }; % Draw projection to XY plane
+    \draw[vector,color=green,dotted,#7] (O) -- (E) node[midway]{\tiny $Q^*(s,a) = \mathcal{T}Q^*(s,a)$};
+    
+    %\draw[vector,thin,color=blue] (#1,#2,#3) -- (#4,#2,#3);
+    %\draw[vector,thin,color=blue] (#4,#2,#3) -- (TEndXY); % Draw Y projection in XY plane
+    %\draw[vector,thin,color=red] (TBeginXY) -- (TEndXY); % Draw projection to XY plane
+    %\draw[vector,color=green,dotted,#7] (O) -- (E) %node[midway,above,black]{\scriptsize #8}; 
+}
+\begin{document}
+\addtobeamertemplate{headline}{}
+{
+    \begin{tikzpicture}[remember picture,overlay]
+     % \node [anchor=north west, inner sep=3cm] at ([xshift=0.0cm,yshift=1.0cm]current page.north west)
+      %{\includegraphics[height=5.0cm]{logos/uc-logo-white.eps}}; % also try shield-white.eps
+      \node [anchor=north east, inner sep=2.3cm] at ([xshift=0.0cm,yshift=2.5cm]current page.north east)
+      {\includegraphics[height=7.5cm]{stanford.png}};
+    \end{tikzpicture}
+}
+
+\begin{frame}[t]
+\vfill
+\begin{block}{\large Motivation}
+  % \centering
+Deep Q-learning as a technique to estimate the optimal state-action value function is relatively recent, introduced only in 2015.  Although it has enjoyed empirical success in playing games such as Atari and Go, it's theoretical foundations are less well-understood, and only recently in papers such as \cite{finite}, \cite{theor}, and \cite{div} have efforts been made in this direction.  By continuing to develop rigorous performance guarantees for DQN's, there is hope that it eventually can be used with more confidence in real-world settings.
+\newline
+
+\end{block}
+\vspace{-2cm}
+% \begin{frame}[t]
+\begin{columns}[t]
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+  \begin{block}{Theoretical Guarantees from \cite{theor} for Neural FQI}
+            
+\begin{algorithm}[H]%[tb]
+   \caption{Neural FQI}
+   \label{FQI}
+\begin{algorithmic}
+   \STATE {\bfseries Input:} MDP ($\mathcal{S}, \mathcal{A}, P, \mathcal{R}, \gamma$), function class $\mathcal{F}$, (fixed) buffer distribution $\sigma$, number of iterations $K$, sample size $n$, initial state-action value function $\widetilde{Q}_0$
+   \FOR{$k=0,1, \dots, K-1$}
+   \STATE Sample $n$ i.i.d. observations $\{s_i, a_i, r_i, s_i'\}$ from $\sigma$ 
+   \STATE Compute $Y_i = r(s_i, a_i) + \gamma \max_{a \in \mathcal{A}} \widetilde{Q}_k(s_i, a_i)$
+   \STATE Calculate $$\widetilde{Q}_{k+1} = \arg \min_{f \in \mathcal{F}} \sum_{i=1}^n \left(Y_i - f(s_i, a_i)\right)^2$$
+   \ENDFOR
+   \OUTPUT $\widetilde{Q}_K \approx Q^*$ and corresponding greedy policy $\pi_K$
+\end{algorithmic}
+\end{algorithm}
+The paper deals with the general case of a finite action space $\mathcal{A}$ and $\mathcal{S} := [0,1]^r$.  
+\begin{enumerate}[(a)]%[label=(\alph*)]
+ \item \textbf{Assumption 1 (Function Closure)}: Let $\mathcal{F} := \mathcal{F}(L, \{d_j\}_{i=0}^{L+1},s, V)$ sparse ReLU networks be the function approximators, with $\le s$ nonzero entries and outputs having magnitude $\le V$.  $\mathcal{G}$ consists of compositions of Holder smooth functions.  Then $f \in \mathcal{F} \implies \mathcal{T}f \in \mathcal{G}$.
+ \begin{itemize}
+     \item Remark:  Has to do with the ``Completeness" assumption in lecture
+ \end{itemize}
+ \item \textbf{Assumption 2 (Concentration Coefficients}: for any integer $m$, let $P^{\pi_m}P^{\pi_{m-1}} \cdots P^{\pi_1}\mu$ denote the distribution of $(s_m, a_m)$ given $(s_0, a_0) \sim \mu$.  Define the $m$-th concentration coefficient as $$\kappa(m; \mu, \sigma) := \sup_{\pi_1, \dots, \pi_m} \left[\mathbb{E}_{\sigma} \left| \frac{d(P^{\pi_m}P^{\pi_{m-1}} \cdots P^{\pi_1}\mu)}{d \sigma} \right|^2 \right]^{1/2}.$$ Assume that there exists a constant $\phi_{\mu, \sigma} < \infty$ such that $$(1-\gamma)^2 \sum_{m \ge 1} \gamma^{m-1} m \kappa(m; \mu, \sigma) \le \phi_{\mu, \sigma}.$$
+ \begin{itemize}
+     \item Remark: Quantifies ``overlap" assumption from lecture, that $\sigma$ has sufficient coverage over $\mathcal{S} \times \mathcal{A}$ wrt a non-stationary policy under $\mathcal{M}$.
+ \end{itemize}
+\end{enumerate}
+Under these assumptions, they prove couple key theorems: \\
+\textbf{Theorem 1} (Error Propagation): Let $Q^{\pi_K}$ be the action value function associated with the returned greedy policy $\pi_K$ of algorithm \ref{FQI}.  Then $$||Q^* - Q^{\pi_K}||_{1,\mu} \le \frac{2 \phi_{\mu, \sigma} \gamma}{(1-\gamma)^2}  \cdot \varepsilon_{\text{max}} + \frac{4 \gamma^{K+1}}{(1-\gamma)^2} \cdot R_{\text{max}},$$ where $\varepsilon_{\text{max}} = \max_{k \in [K]}||\widetilde{Q}_k - T \widetilde{Q}_{k-1}||_\sigma$ is the maximum single-step approximation error. \\
+Then to bound the single-step approximation errors they obtain: \\
+\textbf{Theorem 2}: Under an i.i.d. assumption on the sampled $\{(s_i, a_i)\}_{i \in [n]}$ from $\sigma$, the solution to the least squares minimization in algorithm \ref{FQI} satisfies $$||\widehat{Q} - TQ||_{\sigma}^2 \le \omega(\mathcal{F}) + C \cdot V_{\text{max}}/(n \cdot \epsilon) \cdot \log N_{\delta} + C' \cdot V_{\text{max}} \cdot \delta,$$ where $C, C' > 0$, $N_{\delta}$ is the minimal $\delta$-covering set of $\mathcal{F}$, and $$\omega(\mathcal{F}) = \sup_{g \in \mathcal{F}} \inf_{f \in \mathcal{F}} ||f - Tg||_\sigma^2.$$
+\textbf{Remark:} The first $\omega(\mathcal{F})$ term controls the bias of the sparse ReLU networks in approximating functions from $\mathcal{G}$, and the second the variance.  Note how the variance tends to $0$ as $n \to \infty$, and increases as $V_{\text{max}}$, the upper bound on the size of outputs, increases.
+
+  \end{block}
+\begin{block}
+
+    \nocite{*}
+    \footnotesize{\bibliographystyle{plainnat}\bibliography{234bib}}
+
+\end{block}
+\end{column}
+
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+\begin{block}{Analysis of Neural Q-learning}
+
+\begin{algorithm}[H]%[tb]
+   \caption{Neural Q-Learning with Gaussian Initialization}
+   \label{neur}
+\begin{algorithmic}
+   \STATE {\bfseries Input:} learning policy $\pi$, learning rate sequence $\{ \eta_t \}_{t \ge 0}, \gamma, W_l \in \mathbb{R}^{m \times m}, W_l^{(0)} \sim N(0, 1/m)$ for $l = 1, \dots, L$
+   \STATE {\bfseries Initialization:} $\theta_0 = \left(W_0^{(1)}, \dots, W_0^{(L)}\right)$
+   \FOR{$t=0,1, \dots, T-1$}
+   \STATE Sample data $(s_t, a_t, r_t, s_{t+1})$ from $\pi$    \STATE {$\delta_t = f(\theta_t; s_t, a_t) - (r_t + \gamma \max_{b \in \mathcal{A}} f(\theta_t; s_{t+1}))$}
+   \STATE $g_t (\theta_t) = \nabla_{\theta} f(\theta_t; s,a) \delta_t$
+   \STATE $\theta_{t+1} = \prod_{\Theta} (\theta_t - \eta_t g_t(\theta_t)$
+   \ENDFOR
+\end{algorithmic}
+\end{algorithm} 
+Much more similar to finite-time version of DQN, except for projection step at the end onto allowable set of $\Theta = \mathbb{B}(\theta_0, \omega)$, defined as $$\mathbb{B}(\theta_0, \omega) := \{\theta = \left(W_0^{(1)}, \dots, W_0^{(L)}\right) : ||W_l - W_0||_F \le \omega, l = 1, \dots, L \}$$ for fixed $\omega$. \\
+
+\textbf{Definition:} A point $\theta^* \in \Theta$ is an approximate stationary point of algorithm \ref{neur} if for all $\theta \in \Theta$ it holds that 
+\begin{equation}
+\mathbb{E}_{\mu, \pi, \mathcal{P}} \left[\widehat{\delta}(s,a,s'; \theta^*) \langle \nabla_{\theta}\widehat{f}(\theta^*;s,a), \theta - \theta^* \rangle \right] \ge 0.
+\label{first}
+\end{equation}Here the problem is simplified by considering $\widehat{f}(\theta) \in \mathcal{F}_{\Theta}$, where $$\mathcal{F}_{\Theta} := \{f(\theta_0)+\langle \nabla_{\theta} f(\theta_0), \theta - \theta_0 \rangle:\theta \in \Theta \},$$ the local linearizations centered at the initialization $\theta_0$, and $$\widehat{\delta}(s,a,s'; \theta^*) = \widehat{f}(\theta; s,a) - \left(r(s,a) + \gamma \max_{b \in \mathcal{A}} \widehat{f}(\theta; s',b)\right)$$ is the temporal difference error. Then noting that $\langle \nabla_{\theta} \widehat{f}(\theta^*), \theta - \theta^* \rangle = \langle \nabla_{\theta} f(\theta_0), \theta - \theta^* \rangle = \widehat{f}(\theta) - \widehat{f}(\theta^*)$, have 
+\begin{IEEEeqnarray*}{rCl}
+\mathbb{E}_{\mu, \pi, \mathcal{P}}\left[ \left(\widehat{f}(\theta^*) - \mathcal{T} \widehat{f}(\theta*)\right)\left(\widehat{f}(\theta) - \widehat{f}(\theta^*) \right) \right] & = & \mathbb{E}_{\mu, \pi} \left[ \mathbb{E}_{\mathcal{P}} [\widehat{\delta}(s,a,s'; \theta^*) \langle \nabla_{\theta}\widehat{f}(\theta^*;s,a), \theta - \theta^* \rangle | s,a] \right]\\
+%& = & \mathbb{E}_{\mu, \pi, \mathcal{P}} \left[\widehat{\delta}(s,a,s'; \theta^*) \langle \nabla_{\theta}\widehat{f}(\theta^*;s,a), \theta - \theta^* \rangle \right] 
+& \ge & 0.
+\end{IEEEeqnarray*}
+
+Some notes:
+\begin{enumerate}[(a)]%[label=(\alph*)]
+\item We could have instead considered the function class $\mathcal{F}_{\Theta}^*$ consisting of local linearizations centered at $\theta^*$ instead of $\theta_0$.  Also the actual stationary point satisfies equation (\ref{first}), motivating the above definition. 
+\item Still the approximate stationary point $\theta^*$ has the important property that the mean squared projected Bellman error $$\text{MSPBE} := \mathbb{E}_{\mu, \pi, \mathcal{P}} \left[ \left(\widehat{f}(\theta^*; s,a) - \prod_{\mathcal{F}_{\theta}} \mathcal{T} \widehat{f}(\theta^*; s,a) \right)^2 \right] = 0.$$
+\end{enumerate}
+
+%\begin{wrapfigure}{l}{0.25\textwidth}
+ %   \centering
+  %  \includegraphics[width=0.25\textwidth]{contour}
+%\end{wrapfigure}
+
+%\begin{figure}
+%\floatbox[{\capbeside\thisfloatsetup{capbesideposition=%{right,top},capbesidewidth=4cm}}]{figure}[\FBwidth]
+%{\caption{A test figure with its caption side by side}\label{fig:test}}
+%{\includegraphics[width=5cm]{name}}
+%\end{figure}
+
+%\begin{wrapfigure}{l}{10cm}%{l}{0.25\textwidth}
+%\centering
+%\begin{figure}
+\vspace{-2cm}
+\begin{minipage}{.55\linewidth}
+\begin{tikzpicture}[scale=3.,axis/.style={->,blue,thick}, 
+/pgfplots/view={15}{21},
+vector/.style={-stealth,red,very thick}, 
+vector guide/.style={dashed,red,thick},inner frame sep=0]
+\begin{axis}[
+ticks=none,
+axis lines=center,
+axis on top,
+every inner z axis line/.append style={opacity=0},
+%xlabel={$x$}, ylabel={$y$}, zlabel={$z$},
+domain=0:1,
+x domain=0:2*pi,
+y domain=0:2*pi,
+xmin=-0.6, xmax=.8,
+ymin=-2, ymax=1.2, zmin=0.0,zmax=4.1,
+%every axis x label/.style={at={(rel axis cs:1,0.55,0)},anchor=north},
+%every axis y label/.style={at={(rel axis cs:0.35,.8,0)},anchor=south},
+%very axis z label/.style={at={(rel axis cs:0.25,0.45,0.36)},anchor=west},
+samples=30]
+
+\addplot3 [domain=0:360,samples y=1,name path=top,draw=none] ({1*cos(deg(x))},{1*sin(deg(x))},{1});
+%\path[name path=zline] (0,0,0) -- (0,0,1.5) coordinate(ztop);
+\path[name intersections={of=top and zline,by={aux1}}];
+\draw[-latex] (aux1) -- (ztop);
+%standard tikz coordinate definition using x, y, z coords
+
+\DrawWithXYProjections{-.3}{0}{0.1}{.4}{2}{3}{}%{}
+%\node[text width=6cm, anchor=west, right] at (0,0)
+ %   {In this diagram, what can you say about $\angle F$, $\angle %B$ and $\angle E$?};
+%\DrawWithXYProjections{0}{0.5}{2.5}{-.3}{0}{2.1}{}{IsFine}
+%\node[text width=6cm, anchor=west, right] at (4,0)
+ %   {\tiny In this diagram, what can you say about $\angle F$, %$\angle B$ and $\angle E$?};
+\end{axis}
+\end{tikzpicture} 
+\end{minipage}
+\hspace{-5cm}
+\begin{minipage}{.4\linewidth}
+Diagram on left helps to visualize the following:
+\begin{IEEEeqnarray*}{rCl}
+|\widehat{f}(\theta^*;s,a) - Q^*(s,a)| & = &  \left|\widehat{f}(\theta^*) - \prod_{\mathcal{F}_{\Theta}} Q^* + \prod_{\mathcal{F}_{\Theta}} Q^* - Q^*\right|\\
+& = & \left|\prod_{\mathcal{F}_{\Theta}}\mathcal{T}\widehat{f}(\theta^*) - \prod_{\mathcal{F}_{\Theta}}\mathcal{T}Q^* + \prod_{\mathcal{F}_{\Theta}} Q^* - Q^* \right| \\
+& \le & \left|\prod_{\mathcal{F}_{\Theta}}\mathcal{T}\widehat{f}(\theta^*)-\prod_{\mathcal{F}_{\Theta}}\mathcal{T}Q^*\right| + \left|\prod_{\mathcal{F}_{\Theta}} Q^* - Q^* \right|,
+\end{IEEEeqnarray*}
+\end{minipage}
+
+%\caption{Foo bar}
+%\end{figure}
+
+%\end{wrapfigure}
+  %\end{outline}
+
+%\begin{IEEEeqnarray*}{rCl}
+%|\widehat{f}(\theta^*;s,a) - Q^*(s,a)| & = &  |\widehat{f}(\theta^*) - \prod_{\mathcal{F}_{\Theta}} Q^* + \prod_{\mathcal{F}_{\Theta}} Q^* - Q^*|\\
+%& = & |\prod_{\mathcal{F}_{\Theta}}\mathcal{T}\widehat{f}(\theta^*) - \prod_{\mathcal{F}_{\Theta}}\mathcal{T}Q^* + \prod_{\mathcal{F}_{\Theta}} Q^* - Q^*| \\
+%& \le & |\prod_{\mathcal{F}_{\Theta}}\mathcal{T}\widehat{f}(\theta^*)-\prod_{\mathcal{F}_{\Theta}}\mathcal{T}Q^*| + |\prod_{\mathcal{F}_{\Theta}} Q^* - Q^*|,
+%\end{IEEEeqnarray*}
+which eventually allows the authors to prove a bound on the desired quantity $\mathbb{E}\left[(Q(\theta_T; s,a) - Q^*(s,a))^2\right]$ in terms of the approximation error $\mathbb{E}\left[ \left(\prod_{\mathcal{F}_{\Theta}} Q^*(s,a) - Q^*(s,a) \right)^2 \right]$.
+\end{block}
+\end{column}
+
+\separatorcolumn
+
+
+\end{columns}
+\vfill
+%\begin{block}
+
+ %   \nocite{*}
+  %  \footnotesize{\bibliographystyle{plainnat}\bibliography{234bib}}
+
+%\end{block}
+
+\end{frame}
+
+\end{document}

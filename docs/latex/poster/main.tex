@@ -22,11 +22,13 @@
 \usepackage{doi}
 \usepackage[numbers]{natbib}
 \usepackage[patch=none]{microtype}
+\usepackage{arydshln}
 \usepackage{tikz}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage{anyfontsize}
 \usepackage{subcaption}
+\usepackage{wrapfig}
 \usepackage{outlines}
 \usetikzlibrary{arrows,shapes}
 
@@ -95,8 +97,7 @@
 \begin{block}{\large Problem \& Motivation}
   % \centering
   Transfer learning has become a valuable tool for handling a variety of downstream NLP tasks given a single generic pre-trained model. Since most of the downstream tasks are specialized, quality training data is a scarce resource, making training large models from scratch very difficult. 
-  In this project, we investigate how the performance of a pre-trained BERT encoder model changes for three different downstream prediction tasks when we include (1) regularization in our fine-tuning loss function and parameter (SMART by Jiang et al. \cite{smart}), (2) multitask learning on fine-tuning datasets \cite{MTL}, and (3) introduce relational layers that exploit similarity between tasks \cite{MTL}.
-  
+  In this project, we investigate how the performance of a pre-trained BERT encoder model changes for three different downstream prediction tasks when we include (i) regularization in our fine-tuning loss function and parameter (SMART by Jiang et al. \cite{smart}), (ii) multitask learning on fine-tuning datasets \cite{MTL}, and (iii) introduce relational layers that exploit similarity between tasks \cite{MTL}. Our default minBERT model is pre-trained using two unsupervised tasks on Wikipedia articles: masked language modeling and next sentence prediction. For fine-tuning on downstream prediction tasks, we use the \textit{Stanford Sentiment Treebank} (SST, 11,855 single sentence reviews), \textit{Quora} (400,000 question pairs), and \textit{SemEval STS Benchmark} (STS, 8,628 sentence pairs) datasets. 
   % We find that SMART prevents overfitting that is common in fine-tuning BERT models to downstream tasks when constrained by the size of the particular fine-tuning dataset. Also, we learn this adversarial regularization is less effective when combined with multi-task learning in a rich data environment. Finally, we observe that there is value in 
 
 \end{block}
@@ -117,7 +118,7 @@ Many fine-tuning routines suffer from overfitting, which leads to poor performan
     \mathcal{L}(\theta) & = \frac{1}{n} \sum_{i=1}^{n} l(f(x_{i};\theta), y_{i}) && \text{regular loss function} \\
     \mathcal{R}_{s}(\theta) & = \frac{1}{n} \sum_{i=1}^{n} \max_{\lVert \Tilde{x_{i}} - x_{i} \rVert_{p \leq \epsilon}} l_{s}\left(f(\Tilde{x_{i}}; \theta), f(x_{i}; \theta)\right) && \text{regularization term}\\
     l_{s}(P, Q) & = \mathcal{D}_{KL}(P \lVert Q) + \mathcal{D}_{KL}(Q \lVert P) && \text{symmetric KL-divergence}
-    \end{align*} 
+    \end{align*} \newline
 
     \item \textbf{Bregman proximal point optimization}: To prevent aggressive updating, the optimization routine is changed so that we introduce a trust-region-type regularization at each iteration, so we only update the model within a small neighborhood of the previous iterate. Specifically, we update parameters $\theta$ by $\theta_{t+1} = \text{argmin}_{\theta} \mathcal{F}(\theta) + \mu \mathcal{D}_{Breg}(\theta, \Tilde{\theta_{t}})$, where
     \begin{align*}
@@ -126,7 +127,10 @@ Many fine-tuning routines suffer from overfitting, which leads to poor performan
     \end{align*}
 \end{enumerate}
 
-\textbf{Customizations}. Although we were mostly able to follow the authors' algorithm, we needed to (a) tune hyperparameters for our problem and (b) customize the algorithm to handle dropout. The latter was more involved. When we evaluate the model before and after our adversarial update, we experience large differences in the output logits, even in the limit where our maximum deviation parameter $\epsilon$ goes to zero. This difference in logits results from essentially comparing the outputs of two different models, since different dropout masks can be thought of as different models. During our experiments, we found that the benefit of SMART gets drowned out from the non-actionable noise introduced by the different dropout layers. In order to address this problem, we decided to enforce the absence of the dropout layer when evaluating the adversarial loss within the training block. This allowed us to achieve the desired asymptotic behaviour with respect to our $\epsilon$ parameter. {\color{red} replace this customization para with less text and a visual}
+\textbf{Customizations}. Although we were mostly able to follow the authors' algorithm, we needed to customize the algorithm to handle dropout. To do this, we remove dropout (switch to eval mode) when evaluating the adversarial loss within the training block. This allowed us to achieve the desired asymptotic behaviour with respect to our $\epsilon$ parameter. We publish psuedocode for our revised algorithm in the writeup appendix.
+
+We decided not to invest time doing a large hyperparameter grid search for this project since we had access to suggested values from the original paper and limited compute resources. However, we did vary our regularization weight term $\lambda = \{0.01, 0.1, 1, 5, 10, 100\}$ for a small number of iterations to confirm regularization was being applied at the right order of magnitude.
+
 
 % \begin{algorithm}
 % \KwData{$\hat{f}$: model, $\{x_{i}\}_{1}^{Q}$: model embeddings, $\{z_{j}\}_{1}^{B}$: batch inputs, $\sigma^{2}$: variance of noise, $\eta = 10^{-3}$: learning rate for adversarial update, $\epsilon = 10^{-5}$: max perturbation.}
@@ -158,8 +162,8 @@ Many fine-tuning routines suffer from overfitting, which leads to poor performan
 
 \begin{itemize}
 
- \item xx
- \item xx
+ \item Benefits of SMART regularization are most pronounced when the fine-tuning dataset is small or ill-balanced. Areas of the feature space that are sparsely covered in such a dataset will tend to create sharp decision boundaries that may not be generalizable, and hence perform poorly on out-of-sample tests.
+ \item However, incremental benefits of regularization decrease with the size of data used and regularization may even restrict learning too much in this setting.
 
 \end{itemize}
 
@@ -173,52 +177,55 @@ Many fine-tuning routines suffer from overfitting, which leads to poor performan
 
   \begin{block}{Extensions 2-3: Multitask Learning}
 
-    The purpose of using time series models was to predict the entire capacity degradation curve, not only the RUL as with the neural net. The ARIMA model considered only one measurement per cycle, the discharge capacity $Q_D$ and from a machine learning point of view there was a separate model for each battery. 
+    Fine-tuning the default BERT model does not generalize well to other downstream prediction tasks. To design an approach that is generalizable across different tasks, we implement two multi-task learning routines. 
     
-    \begin{enumerate}[(a)]%[label=(\alph*)]
-      \item \textbf{Choice of hyperparameters} was done through Box-Jenkins method which is based on autocorrelation and partial autocorrelation. The results were then sense checked using an automatic parameter selection algorithm called auto-ARIMA. We found that p=2, d=2, q=2 worked well, and in particular that our results were very sensitive to d being at least 2.
-      
-      \item \textbf{Exogenous variables}; ARIMA models can be used with or without exogenous variables. We tried adding exogenous variables to the ARIMA model, however, since the battery life cycles were of different lengths it was hard to consistently apply exogenous variables in training and testing. We ended up not using exogenous variables. 
-    \end{enumerate}
-
-    \begin{minipage}[t]{0.65\textwidth}
-    \textbf{Results} Fit evaluation using ARIMA(2,2,2) on out-of-sample test batteries given information from the first 100 cycles only.    
-    \end{minipage}
-    \begin{minipage}[t]{0.30\textwidth}
-    \begin{flushright}
-    \begin{tabular}{ l c }
-       \textbf{MSE SOH} &  \textbf{0.049} \\
-      % \hline
-       \textbf{MAPE RUL} &  \textbf{26.5\%}
-    \end{tabular}
-    \end{flushright}
-    \end{minipage}
-      
-    \begin{figure}[H]
+    \begin{enumerate}%[(a)]%[label=(\alph*)]
+      \item \textbf{Round-Robin Multitask Fine-Tuning}
+      \begin{itemize}
+      \normalsize
+          \item Equally-weighted round-robin: train on all prediction tasks while balancing data.
+          \item Additional pretraining: exploit rich paraphrase data through additional pretraining.
+          \item Interleaved fine-tuning: batch-adjusted task-specific network on top of BERT.
+          \vspace{-0.3cm}
+      \end{itemize}
+          \begin{figure}[H]
      \centering
-     \begin{subfigure}[b]{0.5\textwidth}
+     \begin{subfigure}[b]{0.485\textwidth}
          \centering
-         \includegraphics[width=\colwidth/2,height = 12cm]{figs/best fit 100.png}
-         \caption{Good prediction example on test battery}
+        \includegraphics[width=0.9\textwidth]{writeup/round-robin.png}
+         \caption{}
          %\label{fig:y equals x}
      \end{subfigure}
-     \hfill
-     \begin{subfigure}[b]{0.49\textwidth}
+     \begin{subfigure}[b]{0.485\textwidth}
         \centering
-        \includegraphics[width=\colwidth/2,height = 12cm]{figs/worst fit 100.png}
-         \caption{Poor prediction example on test battery}
+        \includegraphics[width=0.9\textwidth]{writeup/add-pretrain.png}
+         \caption{}
          %\label{fig:three sin x}
      \end{subfigure}
-\caption{Predicted discharge capacity over cycle life until 0.8 threshold} %cycle life}
+\caption{Model architectures for equally-weighted round-robin and interleaved fine-tuning in (a) and additional pretraining in (b).} %cycle life}
 \label{fig:birds}
 \end{figure} 
-
+      
+      \item \textbf{Rich Relational Layer Combining Similar Tasks} 
+      \begin{itemize}
+      \normalsize
+          \item Capture similarities across tasks to synergize joint performance.
+          \item Share relational layer between rich paraphrase data and STS data on top of BERT.
+      \end{itemize}  
+      \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.485\textwidth]{writeup/rich-rel.png}
+    \caption{Network architecture for the rich relational approach.}
+\end{figure}
+    \end{enumerate}
+    %Noticing that the paraphrase and STS datasets exhibit strong similarities, we design a multi-task learning approach that can capture rich relationships between tasks. Its main features include:
   \end{block}
-
+\vspace{-1.2cm}
   \begin{alertblock}{\small Discussion and takeaways}
   \begin{outline}
-      \1 xx
-      \1  xx
+      \1  The benefit of introducing more data has proven to be greater than the potential risk of an imbalanced multitask fine-tuning procedure.
+      \1  For all data-rich models, SST accuracy slightly dropped. This is likely caused by the added Quora data being orthogonal to or disrupting the sentiment task.
+
   \end{outline}
      
   \end{alertblock}
@@ -229,52 +236,59 @@ Many fine-tuning routines suffer from overfitting, which leads to poor performan
 \begin{column}{\colwidth}
 
 \begin{block}{Experiments \& Analysis}
-Table \ref{tab: single} compares the dev accuracy of our default model (pretrain and finetune) with benchmarks provided in the handout for the single-task classifier. Our results are all close to the, benchmarks which gives us confidence in the `correctness' of our default implementation. 
+Table \ref{tab: single} compares the dev accuracy of our default model (pretrain and finetune) with benchmarks provided in the handout for the single-task classifier. Our results are all close to the benchmarks which gives us confidence in the `correctness' of our default implementation. 
 \begin{table}[h]
 \footnotesize
 \centering
+\caption{\textit{Dev accuracy of baseline BERT models (pretrain and fine-tune) vs. benchmarks for single-task classifier and runtimes per training epoch on a Google Colab GPU.}}
 \begin{tabular}{|l|ccc|ccc|}
 \hline
   & \multicolumn{3}{c|}{\textbf{Sentiment (SST)}} & \multicolumn{3}{c|}{\textbf{Sentiment (CFIMDB)}} \\ \hline
 \textbf{Model type}       & Accuracy       & Benchmark & Runtime (s)          & Accuracy        & Benchmark & Runtime (s)           \\ \hline
 Pretrain default & 0.393           & 0.390 (0.007) & 30    & 0.788            & 0.780 (0.002)  & 45     \\
-Finetune default & 0.522           & 0.515 (0.004) & 120    & 0.963            & 0.966 (0.007) & 150      \\ \hline
+Fine-tune default & 0.522           & 0.515 (0.004) & 120    & 0.963            & 0.966 (0.007) & 150      \\ \hline
 \end{tabular}
-\caption{Dev accuracy of default model vs. benchmarks for single-task classifier and runtimes per training epoch on a Google Colab GPU.}
 \label{tab: single}
 \end{table}
-\vspace{-0.5cm}
+% \vspace{-0.5cm}
 
-Table \ref{tab: multi} compares dev accuracies of our default implementation (treated as our baseline from now on) with the different model extensions. For the milestone, we had implemented batch-level round-robin and SMART regularization extensions, which both independently improved our model's overall performance. In particular, we saw improvements in the paraphrase and similarity tasks. Our best milestone result came from combining both extensions (rrobin+smart), although this does significantly increase computation time.
+Table \ref{tab: multi} gives the dev performance for all proposed model approaches on the SST, Quora, and STS tasks. We include three non-multitask models; the baseline models from Table \ref{tab: single} (i.e., BERT and fine-tuned SST) and an SST-fine-tuned model with SMART. Furthermore, we evaluate various multitask learning approaches combining SMART, round-robin, and the rich relational layer model.  
+
+% Table \ref{tab: multi} compares dev accuracies of our default implementation (treated as our baseline from now on) with the different model extensions. For the milestone, we had implemented batch-level round-robin and SMART regularization extensions, which both independently improved our model's overall performance. In particular, we saw improvements in the paraphrase and similarity tasks. Our best milestone result came from combining both extensions (rrobin+smart), although this does significantly increase computation time.
 
 \begin{table}[h]
 \footnotesize
 \centering
+\caption{\textit{Dev set accuracies of single- and multitask models on three fine-tune tasks. The models are divided into three groups; (i) single-task approaches, (ii) small-scale (equally-weighted batches) approaches, and (iii) large-scale rich (relational) approaches. The best model for each task is bolded. Runtimes are given in seconds per training epoch on an AWS EC2 instance.}}
 \begin{tabular}{|l|cccc|} \hline
 & \multicolumn{1}{c}{\textbf{Sentiment (SST)}} & \multicolumn{1}{c}{\textbf{Paraphrase (Quora)}} & \multicolumn{1}{c}{\textbf{Similarity (STS)}} &  \\ \hline
 \textbf{Model type} & Accuracy & Accuracy & Correlation & Runtime (s) \\ \hline
-Pretrain default      & 0.396 (*)         & 0.380            & 0.019 & 9          \\
-Finetune default      & 0.525 (*)        & 0.522           & 0.240 &  25         \\ \hdashline
-Finetune rrobin       & 0.524            & 0.726            & 0.583   & 67        \\
-Finetune smart        & 0.520             & 0.501           & 0.382 & 161          \\
-Finetune rrobin+smart & 0.532              & 0.741            & 0.680 & 464          \\ \hdashline
-Finetune quora+rrobin+smart & 0.519          & 0.851           & 0.690 & 3,037         \\
-Finetune rrobin-full & 0.498          & 0.863           & 0.762 & 1,420         \\ 
-Finetune rrobin-full+smart & 0.485          & 0.850           & 0.714 & 4,549         \\
-Finetune rrobin-full+rlayer & 0.501     & 0.867         & 0.802    & 1,550                 \\ \hline
+Pretrain default      & 0.396         & 0.380            & 0.019 & 9          \\
+Fine-tune default      & 0.525        & 0.522           & 0.240 &  25         \\ 
+Fine-tune smart        & 0.520             & 0.501           & 0.382 & 161          \\ \hdashline
+Fine-tune rrobin       & 0.524            & 0.726            & 0.583   & 67        \\
+Fine-tune rrobin+smart & \textbf{0.532}              & 0.741            & 0.680 & 464          \\ \hdashline
+Fine-tune rrobin-pre+smart & 0.519          & 0.851           & 0.690 & 3,037         \\
+Fine-tune rrobin-full & 0.498          & 0.863           & 0.762 & 1,420         \\ 
+Fine-tune rrobin-full+smart & 0.485          & 0.850           & 0.714 & 4,549         \\
+Fine-tune rrobin-full+rlayer & 0.501     & \textbf{0.867}         & \textbf{0.802}    & 1,550                 \\ \hline
 \end{tabular}
-\caption{Dev set accuracies of default vs. model extensions for multi-task classifier and runtimes per training epoch on AWS EC2 instance.}
 \label{tab: multi}
 \end{table}
-For the final report, we added variations of multitask learning that enabled us to use the full Quora dataset. Our first implementation re-used rrobin+smart for fine-tuning but also added a "pretraining" step for the left over Quroa data. This further improved on our milestone results but came with a significant time cost. Our second implementation varied batch size between datasets for each iteration (rrobin-full). This was our best result overall and balanced usage of data, with balanced multitask learning and regularization. {\color{red}update required}
 
-Note, round-robin with variable batch size did not improve with SMART regularization (rrobin-full+smart). We provide a hypothesis for why this was the case in the analysis section.
+SMART performs best out of the single-task models, achieving the highest STS score. However, unsurprisingly, all multitask models easily beat these single-task baselines in terms of paraphrase and STS scores. Out of the multitask models that only use a limited portion of the available data, the SMART implementation again performs best, especially in terms of STS score. When making use of the entire Quora data, we can see that paraphrase accuracy is significantly boosted, reaching values over 85\%. In this setting, it seems that the added value of SMART vanishes.  
+
+The best model overall is the rich relational interleaved round-robin model, which achieves test set performances of 0.503 (SST), 0.865 (paraphrase), and 0.789 (STS).  In terms of runtime, SMART is most costly, especially when used in combination with richer data.
+\vspace{-0.4cm}
+% For the final report, we added variations of multitask learning that enabled us to use the full Quora dataset. Our first implementation re-used rrobin+smart for fine-tuning but also added a "pretraining" step for the left over Quroa data. This further improved on our milestone results but came with a significant time cost. Our second implementation varied batch size between datasets for each iteration (rrobin-full). This was our best result overall and balanced usage of data, with balanced multitask learning and regularization. {\color{red}update required}
+
+% Note, round-robin with variable batch size did not improve with SMART regularization (rrobin-full+smart). We provide a hypothesis for why this was the case in the analysis section.
 \end{block}
     \begin{alertblock}{\small Discussion and takeaways}
 
     \begin{itemize}
-    \item xx
-    \item xx
+    \item Our best model combines multitask learning using varying batch sizes with a rich relational layer between correlated tasks. 
+    \item One next step we would like to explore is data transformations that allow for continuous multimodal distributions that might better predict semantic similarity.
     
     \end{itemize}
   \end{alertblock}
