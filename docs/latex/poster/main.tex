@@ -1,0 +1,312 @@
+% Unofficial UChicago CS Poster Template
+% v1.1.0 released September 8, 2022
+% https://github.com/k4rtik/uchicago-poster
+% a fork of https://github.com/anishathalye/gemini
+
+\documentclass[final]{beamer}
+
+% ====================
+% Packages
+% ====================
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[size=custom,width=120,height=72,scale=1.0]{beamerposter}
+\usetheme{gemini}
+\usecolortheme{uchicago}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{bm}
+\usepackage[ruled]{algorithm2e}
+%\usepackage{enumitem}
+\usepackage{doi}
+\usepackage[numbers]{natbib}
+\usepackage[patch=none]{microtype}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{anyfontsize}
+\usepackage{subcaption}
+\usepackage{outlines}
+\usetikzlibrary{arrows,shapes}
+
+\pdfstringdefDisableCommands{%
+\def\translate#1{#1}%
+}
+
+% ====================
+% Lengths
+% ====================
+
+% If you have N columns, choose \sepwidth and \colwidth such that
+% (N+1)*\sepwidth + N*\colwidth = \paperwidth
+\newlength{\sepwidth}
+\newlength{\colwidth}
+\setlength{\sepwidth}{0.025\paperwidth}
+\setlength{\colwidth}{0.3\paperwidth}
+
+\newcommand{\separatorcolumn}{\begin{column}{\sepwidth}\end{column}}
+
+% ====================
+% Title
+% ====================
+
+\title{Walk Less and Only Down Smooth Valleys}
+
+\author{Thomas Brink (tbrink@stanford.edu) \and Julian Cooper (jelc@stanford.edu) \and Quinn Hollister (bh9vw@stanford.edu)}
+
+
+% ====================
+% Footer (optional)
+% ====================
+
+%\footercontent{
+%  \href{https://www.example.com}{https://www.example.com} \hfill
+%  CS229 Poster session, Stanford University --- XYZ-1234 \hfill
+%  \href{mailto:alyssa.p.hacker@example.com}{alyssa.p.hacker@example.com}}
+% (can be left out to remove footer)
+
+% ====================
+% Logo (optional)
+% ====================
+
+% use this to include logos on the left and/or right side of the header:
+% \logoright{\includegraphics[height=7cm]{logo1.pdf}}
+
+
+% ====================
+% Body
+% ====================
+
+\begin{document}
+\addtobeamertemplate{headline}{}
+{
+    \begin{tikzpicture}[remember picture,overlay]
+     % \node [anchor=north west, inner sep=3cm] at ([xshift=0.0cm,yshift=1.0cm]current page.north west)
+      %{\includegraphics[height=5.0cm]{logos/uc-logo-white.eps}}; % also try shield-white.eps
+      \node [anchor=north east, inner sep=2.3cm] at ([xshift=0.0cm,yshift=2.5cm]current page.north east)
+      {\includegraphics[height=7.5cm]{stanford.png}};
+    \end{tikzpicture}
+}
+
+
+\begin{frame}[t]
+\vfill
+\begin{block}{\large Problem \& Motivation}
+  % \centering
+  Transfer learning has become a valuable tool for handling a variety of downstream NLP tasks given a single generic pre-trained model. Since most of the downstream tasks are specialized, quality training data is a scarce resource, making training large models from scratch very difficult. 
+  In this project, we investigate how the performance of a pre-trained BERT encoder model changes for three different downstream prediction tasks when we include (1) regularization in our fine-tuning loss function and parameter (SMART by Jiang et al. \cite{smart}), (2) multitask learning on fine-tuning datasets \cite{MTL}, and (3) introduce relational layers that exploit similarity between tasks \cite{MTL}.
+  
+  % We find that SMART prevents overfitting that is common in fine-tuning BERT models to downstream tasks when constrained by the size of the particular fine-tuning dataset. Also, we learn this adversarial regularization is less effective when combined with multi-task learning in a rich data environment. Finally, we observe that there is value in 
+
+\end{block}
+
+% \begin{frame}[t]
+\begin{columns}[t]
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+  \begin{block}{Extension 1: SMART Regularization}
+            
+Many fine-tuning routines suffer from overfitting, which leads to poor performance on test sets of downstream prediction tasks. To address this, we implement the SMART regularization technique by Jiang et al. \cite{smart}.
+
+\begin{enumerate}
+    \item \textbf{Adversarial regularization}: The desired property is that when the input $x$ is perturbed by a small amount, the output should not change much. To achieve this, Jiang et al. \cite{smart} optimize loss $\mathcal{F}(\theta)$ using: $\min_{\theta} \mathcal{F}(\theta) = \mathcal{L}(\theta) + \lambda_{s}\mathcal{R}_{s}(\theta)$, where
+    \begin{align*}
+    \mathcal{L}(\theta) & = \frac{1}{n} \sum_{i=1}^{n} l(f(x_{i};\theta), y_{i}) && \text{regular loss function} \\
+    \mathcal{R}_{s}(\theta) & = \frac{1}{n} \sum_{i=1}^{n} \max_{\lVert \Tilde{x_{i}} - x_{i} \rVert_{p \leq \epsilon}} l_{s}\left(f(\Tilde{x_{i}}; \theta), f(x_{i}; \theta)\right) && \text{regularization term}\\
+    l_{s}(P, Q) & = \mathcal{D}_{KL}(P \lVert Q) + \mathcal{D}_{KL}(Q \lVert P) && \text{symmetric KL-divergence}
+    \end{align*} 
+
+    \item \textbf{Bregman proximal point optimization}: To prevent aggressive updating, the optimization routine is changed so that we introduce a trust-region-type regularization at each iteration, so we only update the model within a small neighborhood of the previous iterate. Specifically, we update parameters $\theta$ by $\theta_{t+1} = \text{argmin}_{\theta} \mathcal{F}(\theta) + \mu \mathcal{D}_{Breg}(\theta, \Tilde{\theta_{t}})$, where
+    \begin{align*}
+    \mathcal{D}_{Breg}(\theta, \Tilde{\theta_{t}}) & = \frac{1}{n} \sum_{i=1}^{n} l_{s} \left( f(x_{i}; \theta), f(x_{i}; \Tilde{\theta_{t}}) \right) && \text{Bregman divergence} \\
+    \Tilde{\theta}_{t} & = (1 - \beta)\theta_{t} + \beta \Tilde{\theta}_{t-1} && \text{regularized update step}
+    \end{align*}
+\end{enumerate}
+
+\textbf{Customizations}. Although we were mostly able to follow the authors' algorithm, we needed to (a) tune hyperparameters for our problem and (b) customize the algorithm to handle dropout. The latter was more involved. When we evaluate the model before and after our adversarial update, we experience large differences in the output logits, even in the limit where our maximum deviation parameter $\epsilon$ goes to zero. This difference in logits results from essentially comparing the outputs of two different models, since different dropout masks can be thought of as different models. During our experiments, we found that the benefit of SMART gets drowned out from the non-actionable noise introduced by the different dropout layers. In order to address this problem, we decided to enforce the absence of the dropout layer when evaluating the adversarial loss within the training block. This allowed us to achieve the desired asymptotic behaviour with respect to our $\epsilon$ parameter. {\color{red} replace this customization para with less text and a visual}
+
+% \begin{algorithm}
+% \KwData{$\hat{f}$: model, $\{x_{i}\}_{1}^{Q}$: model embeddings, $\{z_{j}\}_{1}^{B}$: batch inputs, $\sigma^{2}$: variance of noise, $\eta = 10^{-3}$: learning rate for adversarial update, $\epsilon = 10^{-5}$: max perturbation.}
+% \Begin{
+%     $\hat{f}$ set to eval mode \\
+%     $y_{j} \longleftarrow \hat{f}(z_{j}, x)$ \\
+%     \For{$ x_{i} \in \mathcal{Q}$}{
+%         $\Tilde{x}_{i} \longleftarrow x_{i} + \nu_{i}$    with $\nu_{i} \sim \mathcal{N}(\mathbf{0}, \sigma^{2} \mathbf{I})$
+%     } 
+%     \For{$ y_{j} \in \mathcal{B}$}{
+%         $\Tilde{h}_{j} \longleftarrow \nabla_{\tilde{x}} l_{s}(y, \hat{f}(z_{j}, x))$
+%     }
+%     $\Tilde{g}_{i} \longleftarrow \left(\frac{1}{|\mathcal{B}|} \sum_{i} \Tilde{h}_{j} \right)\left( \lVert    \frac{1}{|\mathcal{B}|} \sum_{i} \Tilde{h}_{j} \rVert_{\infty}\right)^{-1}$ \\
+%     \For{$x_{i} \in \mathcal{Q}$}{
+%         $\Tilde{x}_{i} \longleftarrow \mathcal{P}_{\lVert \Tilde{x}_{i} + \eta \Tilde{g}_{i} - x_{i}\rVert \leq \epsilon} \left( \Tilde{x}_{i} + \eta \Tilde{g}_{i} \right)$
+%     }
+%     $y^{\text{adv}}_{j} \longleftarrow \hat{f}(z_{j}, \Tilde{x})$ \\
+%     $\mathcal{L}_{\text{adv}, \text{classification}} \longleftarrow \frac{1}{|\mathcal{B}|} \sum_{j \in \mathcal{B}} \mathcal{D}_{KL}( y_{j} || y^{\text{adv}}_{j}) + \mathcal{D}_{KL}( y^{\text{adv}}_{j} || y_{j})$ \\
+%     $\mathcal{L}_{\text{adv}, \text{regression}} \longleftarrow \frac{1}{| \mathcal{B} |} \sum_{j \in \mathcal{B}} \lVert y_{j} - y^{\text{adv}}_{j} \rVert^{2}$ \\
+%     $\hat{f}$ set to train mode
+% }
+% \caption{SMART: Adversarial Loss Calculation}
+% \label{alg: smart-adv}
+% \end{algorithm}
+
+  \end{block}
+
+\begin{alertblock}{\small Discussion and takeaways}
+
+\begin{itemize}
+
+ \item xx
+ \item xx
+
+\end{itemize}
+
+\end{alertblock}
+
+\end{column}
+
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+  \begin{block}{Extensions 2-3: Multitask Learning}
+
+    The purpose of using time series models was to predict the entire capacity degradation curve, not only the RUL as with the neural net. The ARIMA model considered only one measurement per cycle, the discharge capacity $Q_D$ and from a machine learning point of view there was a separate model for each battery. 
+    
+    \begin{enumerate}[(a)]%[label=(\alph*)]
+      \item \textbf{Choice of hyperparameters} was done through Box-Jenkins method which is based on autocorrelation and partial autocorrelation. The results were then sense checked using an automatic parameter selection algorithm called auto-ARIMA. We found that p=2, d=2, q=2 worked well, and in particular that our results were very sensitive to d being at least 2.
+      
+      \item \textbf{Exogenous variables}; ARIMA models can be used with or without exogenous variables. We tried adding exogenous variables to the ARIMA model, however, since the battery life cycles were of different lengths it was hard to consistently apply exogenous variables in training and testing. We ended up not using exogenous variables. 
+    \end{enumerate}
+
+    \begin{minipage}[t]{0.65\textwidth}
+    \textbf{Results} Fit evaluation using ARIMA(2,2,2) on out-of-sample test batteries given information from the first 100 cycles only.    
+    \end{minipage}
+    \begin{minipage}[t]{0.30\textwidth}
+    \begin{flushright}
+    \begin{tabular}{ l c }
+       \textbf{MSE SOH} &  \textbf{0.049} \\
+      % \hline
+       \textbf{MAPE RUL} &  \textbf{26.5\%}
+    \end{tabular}
+    \end{flushright}
+    \end{minipage}
+      
+    \begin{figure}[H]
+     \centering
+     \begin{subfigure}[b]{0.5\textwidth}
+         \centering
+         \includegraphics[width=\colwidth/2,height = 12cm]{figs/best fit 100.png}
+         \caption{Good prediction example on test battery}
+         %\label{fig:y equals x}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\colwidth/2,height = 12cm]{figs/worst fit 100.png}
+         \caption{Poor prediction example on test battery}
+         %\label{fig:three sin x}
+     \end{subfigure}
+\caption{Predicted discharge capacity over cycle life until 0.8 threshold} %cycle life}
+\label{fig:birds}
+\end{figure} 
+
+  \end{block}
+
+  \begin{alertblock}{\small Discussion and takeaways}
+  \begin{outline}
+      \1 xx
+      \1  xx
+  \end{outline}
+     
+  \end{alertblock}
+\end{column}
+
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+\begin{block}{Experiments \& Analysis}
+Table \ref{tab: single} compares the dev accuracy of our default model (pretrain and finetune) with benchmarks provided in the handout for the single-task classifier. Our results are all close to the, benchmarks which gives us confidence in the `correctness' of our default implementation. 
+\begin{table}[h]
+\footnotesize
+\centering
+\begin{tabular}{|l|ccc|ccc|}
+\hline
+  & \multicolumn{3}{c|}{\textbf{Sentiment (SST)}} & \multicolumn{3}{c|}{\textbf{Sentiment (CFIMDB)}} \\ \hline
+\textbf{Model type}       & Accuracy       & Benchmark & Runtime (s)          & Accuracy        & Benchmark & Runtime (s)           \\ \hline
+Pretrain default & 0.393           & 0.390 (0.007) & 30    & 0.788            & 0.780 (0.002)  & 45     \\
+Finetune default & 0.522           & 0.515 (0.004) & 120    & 0.963            & 0.966 (0.007) & 150      \\ \hline
+\end{tabular}
+\caption{Dev accuracy of default model vs. benchmarks for single-task classifier and runtimes per training epoch on a Google Colab GPU.}
+\label{tab: single}
+\end{table}
+\vspace{-0.5cm}
+
+Table \ref{tab: multi} compares dev accuracies of our default implementation (treated as our baseline from now on) with the different model extensions. For the milestone, we had implemented batch-level round-robin and SMART regularization extensions, which both independently improved our model's overall performance. In particular, we saw improvements in the paraphrase and similarity tasks. Our best milestone result came from combining both extensions (rrobin+smart), although this does significantly increase computation time.
+
+\begin{table}[h]
+\footnotesize
+\centering
+\begin{tabular}{|l|cccc|} \hline
+& \multicolumn{1}{c}{\textbf{Sentiment (SST)}} & \multicolumn{1}{c}{\textbf{Paraphrase (Quora)}} & \multicolumn{1}{c}{\textbf{Similarity (STS)}} &  \\ \hline
+\textbf{Model type} & Accuracy & Accuracy & Correlation & Runtime (s) \\ \hline
+Pretrain default      & 0.396 (*)         & 0.380            & 0.019 & 9          \\
+Finetune default      & 0.525 (*)        & 0.522           & 0.240 &  25         \\ \hdashline
+Finetune rrobin       & 0.524            & 0.726            & 0.583   & 67        \\
+Finetune smart        & 0.520             & 0.501           & 0.382 & 161          \\
+Finetune rrobin+smart & 0.532              & 0.741            & 0.680 & 464          \\ \hdashline
+Finetune quora+rrobin+smart & 0.519          & 0.851           & 0.690 & 3,037         \\
+Finetune rrobin-full & 0.498          & 0.863           & 0.762 & 1,420         \\ 
+Finetune rrobin-full+smart & 0.485          & 0.850           & 0.714 & 4,549         \\
+Finetune rrobin-full+rlayer & 0.501     & 0.867         & 0.802    & 1,550                 \\ \hline
+\end{tabular}
+\caption{Dev set accuracies of default vs. model extensions for multi-task classifier and runtimes per training epoch on AWS EC2 instance.}
+\label{tab: multi}
+\end{table}
+For the final report, we added variations of multitask learning that enabled us to use the full Quora dataset. Our first implementation re-used rrobin+smart for fine-tuning but also added a "pretraining" step for the left over Quroa data. This further improved on our milestone results but came with a significant time cost. Our second implementation varied batch size between datasets for each iteration (rrobin-full). This was our best result overall and balanced usage of data, with balanced multitask learning and regularization. {\color{red}update required}
+
+Note, round-robin with variable batch size did not improve with SMART regularization (rrobin-full+smart). We provide a hypothesis for why this was the case in the analysis section.
+\end{block}
+    \begin{alertblock}{\small Discussion and takeaways}
+
+    \begin{itemize}
+    \item xx
+    \item xx
+    
+    \end{itemize}
+  \end{alertblock}
+
+\end{column}
+
+\separatorcolumn
+\end{columns}
+\vfill
+\begin{block}
+
+    % \nocite{*}
+    \footnotesize{\bibliographystyle{plainnat}\bibliography{poster}}
+
+\end{block}
+
+\end{frame}
+
+\end{document}￼
+@article{pretrain,
+  author    = {Chi Sun and
+               Xipeng Qiu and
+               Yige Xu and
+               Xuanjing Huang},
+  title     = {How to Fine-Tune {BERT} for Text Classification?},
+  journal   = {CoRR},
+  volume    = {abs/1905.05583},
+  year      = {2019},
+  url       = {http://arxiv.org/abs/1905.05583},
+  eprinttype = {arXiv},
+  eprint    = {1905.05583},
+  timestamp = {Tue, 21 Jan 2020 13:18:06 +0100},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-1905-05583.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
