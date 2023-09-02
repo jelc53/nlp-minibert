@@ -1,6 +1,7 @@
 # CS 224N Default Final Project - Multitask BERT
 
-This is the starting code for the default final project for the Stanford CS 224N class. You can find the handout [here](https://web.stanford.edu/class/cs224n/project/default-final-project-bert-handout.pdf)
+
+This is the code for the default final project of Julian Cooper, Thomas Brink, and Quinn Hollister for the Stanford CS 224N class. You can find the handout [here](https://web.stanford.edu/class/cs224n/project/default-final-project-bert-handout.pdf). Our final project report can be found in this repository (CS224N_Final_Report.pdf) as well. For some general instructions (from the CS224N course), see below.
 
 In this project, you will implement some important components of the BERT model to better understanding its architecture. 
 You will then use the embeddings produced by your BERT model on three downstream tasks: sentiment classification, paraphrase detection and semantic similarity.
