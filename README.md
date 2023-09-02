@@ -9,6 +9,8 @@ You will then use the embeddings produced by your BERT model on three downstream
 After finishing the BERT implementation, you will have a simple model that simultaneously performs the three tasks.
 You will then implement extensions to improve on top of this baseline.
 
+In our project, we implemented 3 extensions; i) we incorporated regularization in our fine-tuning loss function and parameter gradient step (SMART), ii) we deployed various methods for multitask learning on the three downstream tasks, and iii) we developed rich relational layers that exploit similarity between tasks to stimulate learning in the fine-tuning phase.
+
 ## Setup instructions
 
 * Follow `setup.sh` to properly setup a conda environment and install dependencies.
